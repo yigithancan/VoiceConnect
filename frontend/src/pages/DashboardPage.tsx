@@ -1,17 +1,27 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { mockCategories, mockMembers, mockServer } from "../data/mockData";
+import {
+  getCategories,
+  getMembers,
+  getServerInfo,
+} from "../services/workspaceApi";
+import type { Category, Channel, Member, ServerInfo } from "../types/workspace";
 
 function DashboardPage() {
   const navigate = useNavigate();
 
-  const firstChannel = mockCategories[0].channels[0];
+  const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
-  const [selectedChannel, setSelectedChannel] = useState(firstChannel);
   const [currentUsername, setCurrentUsername] = useState("Kullanıcı");
   const [isMicOpen, setIsMicOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     const isLoggedIn = localStorage.getItem("voiceconnect_logged_in");
@@ -26,20 +36,71 @@ function DashboardPage() {
     setCurrentUsername(user.username || "Kullanıcı");
   }, [navigate]);
 
+  useEffect(() => {
+    const fetchWorkspaceData = async () => {
+      try {
+        setIsLoading(true);
+
+        const serverData = await getServerInfo();
+        const categoryData = await getCategories();
+        const memberData = await getMembers();
+
+        setServerInfo(serverData);
+        setCategories(categoryData);
+        setMembers(memberData);
+
+        if (categoryData.length > 0 && categoryData[0].channels.length > 0) {
+          setSelectedChannel(categoryData[0].channels[0]);
+        }
+      } catch {
+        setErrorMessage("Backend verileri alınamadı. Backend çalışıyor mu kontrol et.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchWorkspaceData();
+  }, []);
+
   const handleLeave = () => {
     localStorage.removeItem("voiceconnect_logged_in");
     navigate("/login");
   };
 
-  const members = [
+  const displayedMembers = [
     {
       id: 0,
       username: currentUsername,
       role: "Sen",
       status: "online",
     },
-    ...mockMembers.filter((member) => member.username !== "Yiğithan"),
+    ...members.filter((member) => member.username !== currentUsername),
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        Dashboard verileri yükleniyor...
+      </div>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-white">
+        <div className="rounded-xl border border-red-800 bg-red-950/40 p-6 text-center">
+          <p className="font-semibold text-red-300">{errorMessage}</p>
+
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-lg bg-red-600 px-4 py-2 hover:bg-red-700"
+          >
+            Tekrar Dene
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -50,17 +111,21 @@ function DashboardPage() {
           </div>
 
           <p className="font-bold text-indigo-400 md:hidden">
-            {mockServer.name}
+            {serverInfo?.name}
           </p>
         </aside>
 
         <aside className="w-full border-b border-slate-800 bg-slate-900 p-4 md:w-72 md:border-b-0 md:border-r">
           <h2 className="hidden text-lg font-bold text-indigo-400 md:block">
-            {mockServer.name}
+            {serverInfo?.name}
           </h2>
 
+          <p className="mt-2 hidden text-sm text-slate-500 md:block">
+            {serverInfo?.description}
+          </p>
+
           <div className="mt-4 space-y-6 md:mt-6">
-            {mockCategories.map((category) => (
+            {categories.map((category) => (
               <div key={category.id}>
                 <p className="text-xs font-semibold uppercase text-slate-500">
                   {category.name}
@@ -72,7 +137,7 @@ function DashboardPage() {
                       key={channel.id}
                       onClick={() => setSelectedChannel(channel)}
                       className={`w-full rounded-lg px-3 py-2 text-left ${
-                        selectedChannel.id === channel.id
+                        selectedChannel?.id === channel.id
                           ? "bg-slate-800 text-white"
                           : "text-slate-400 hover:bg-slate-800"
                       }`}
@@ -91,7 +156,7 @@ function DashboardPage() {
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div>
                 <h1 className="text-2xl font-bold">
-                  {selectedChannel.name}
+                  {selectedChannel?.name}
                 </h1>
 
                 <p className="mt-2 text-slate-400">
@@ -100,7 +165,7 @@ function DashboardPage() {
               </div>
 
               <div className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-slate-300">
-                Kanal tipi: {selectedChannel.type}
+                Kanal tipi: {selectedChannel?.type}
               </div>
             </div>
 
@@ -125,7 +190,7 @@ function DashboardPage() {
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="font-medium">Burak</p>
+                  <p className="font-medium">Misafir</p>
 
                   <span className="rounded-full bg-green-600/20 px-3 py-1 text-xs text-green-300">
                     Bağlı
@@ -190,7 +255,7 @@ function DashboardPage() {
           </h3>
 
           <div className="mt-4 space-y-3">
-            {members.map((member) => (
+            {displayedMembers.map((member) => (
               <div
                 key={member.id}
                 className="flex items-center justify-between rounded-lg bg-slate-800 px-3 py-3"

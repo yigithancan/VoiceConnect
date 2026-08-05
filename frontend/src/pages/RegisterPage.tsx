@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { registerRequest } from "../services/authApi";
 
 function RegisterPage() {
   const navigate = useNavigate();
@@ -8,28 +9,37 @@ function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleRegister = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const handleRegister = async () => {
     if (!username || !email || !password) {
-      alert("Lütfen tüm alanları doldurun.");
+      setMessage("Lütfen tüm alanları doldurun.");
       return;
     }
 
-    const user = {
-      username,
-      email,
-      password,
-    };
+    try {
+      setIsLoading(true);
+      setMessage("");
 
-    localStorage.setItem("voiceconnect_user", JSON.stringify(user));
+      await registerRequest(username, email, password);
 
-    alert("Kayıt başarılı. Şimdi giriş yapabilirsin.");
-    navigate("/login");
+      setMessage("Kayıt başarılı. Giriş sayfasına yönlendiriliyorsun.");
+
+      setTimeout(() => {
+        navigate("/login");
+      }, 1000);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Kayıt başarısız.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl bg-slate-900 p-8 shadow-xl border border-slate-800">
-        <h1 className="text-3xl font-bold text-center text-indigo-400">
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-white">
+      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
+        <h1 className="text-center text-3xl font-bold text-indigo-400">
           VoiceConnect
         </h1>
 
@@ -37,17 +47,24 @@ function RegisterPage() {
           Yeni hesap oluştur
         </p>
 
-        <form className="mt-8 space-y-4">
+        {message && (
+          <div className="mt-6 rounded-lg bg-slate-800 px-4 py-3 text-sm text-slate-300">
+            {message}
+          </div>
+        )}
+
+        <form className="mt-6 space-y-4">
           <div>
             <label className="block text-sm text-slate-300">
               Kullanıcı adı
             </label>
+
             <input
               type="text"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              className="mt-2 w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 outline-none focus:border-indigo-500"
-              placeholder="yigithan"
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-indigo-500"
+              placeholder="yigithancan"
             />
           </div>
 
@@ -55,11 +72,12 @@ function RegisterPage() {
             <label className="block text-sm text-slate-300">
               E-posta
             </label>
+
             <input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 outline-none focus:border-indigo-500"
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-indigo-500"
               placeholder="ornek@mail.com"
             />
           </div>
@@ -68,11 +86,12 @@ function RegisterPage() {
             <label className="block text-sm text-slate-300">
               Şifre
             </label>
+
             <input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 outline-none focus:border-indigo-500"
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-indigo-500"
               placeholder="********"
             />
           </div>
@@ -80,9 +99,10 @@ function RegisterPage() {
           <button
             type="button"
             onClick={handleRegister}
-            className="w-full rounded-lg bg-indigo-600 py-3 font-semibold hover:bg-indigo-700"
+            disabled={isLoading}
+            className="w-full rounded-lg bg-indigo-600 py-3 font-semibold hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Kayıt Ol
+            {isLoading ? "Kaydediliyor..." : "Kayıt Ol"}
           </button>
         </form>
 

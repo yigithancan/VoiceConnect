@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { loginRequest } from "../services/authApi";
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -7,35 +8,40 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const handleLogin = async () => {
     if (!email || !password) {
-      alert("Lütfen e-posta ve şifre alanlarını doldurun.");
+      setMessage("Lütfen e-posta ve şifre alanlarını doldurun.");
       return;
     }
 
-    const savedUser = localStorage.getItem("voiceconnect_user");
+    try {
+      setIsLoading(true);
+      setMessage("");
 
-    if (!savedUser) {
-      alert("Kayıtlı kullanıcı bulunamadı. Önce kayıt olun.");
-      return;
+      const result = await loginRequest(email, password);
+
+      localStorage.setItem("voiceconnect_logged_in", "true");
+      localStorage.setItem("voiceconnect_token", result.data.token);
+      localStorage.setItem(
+        "voiceconnect_user",
+        JSON.stringify(result.data.user)
+      );
+
+      navigate("/dashboard");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Giriş başarısız.");
+    } finally {
+      setIsLoading(false);
     }
-
-    const user = JSON.parse(savedUser);
-
-    if (user.email !== email || user.password !== password) {
-      alert("E-posta veya şifre hatalı.");
-      return;
-    }
-
-    localStorage.setItem("voiceconnect_logged_in", "true");
-
-    navigate("/dashboard");
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl bg-slate-900 p-8 shadow-xl border border-slate-800">
-        <h1 className="text-3xl font-bold text-center text-indigo-400">
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-white">
+      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
+        <h1 className="text-center text-3xl font-bold text-indigo-400">
           VoiceConnect
         </h1>
 
@@ -43,16 +49,23 @@ function LoginPage() {
           Hesabına giriş yap
         </p>
 
-        <form className="mt-8 space-y-4">
+        {message && (
+          <div className="mt-6 rounded-lg bg-slate-800 px-4 py-3 text-sm text-slate-300">
+            {message}
+          </div>
+        )}
+
+        <form className="mt-6 space-y-4">
           <div>
             <label className="block text-sm text-slate-300">
               E-posta
             </label>
+
             <input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 outline-none focus:border-indigo-500"
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-indigo-500"
               placeholder="ornek@mail.com"
             />
           </div>
@@ -61,11 +74,12 @@ function LoginPage() {
             <label className="block text-sm text-slate-300">
               Şifre
             </label>
+
             <input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 outline-none focus:border-indigo-500"
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-indigo-500"
               placeholder="********"
             />
           </div>
@@ -73,9 +87,10 @@ function LoginPage() {
           <button
             type="button"
             onClick={handleLogin}
-            className="w-full rounded-lg bg-indigo-600 py-3 font-semibold hover:bg-indigo-700"
+            disabled={isLoading}
+            className="w-full rounded-lg bg-indigo-600 py-3 font-semibold hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Giriş Yap
+            {isLoading ? "Giriş yapılıyor..." : "Giriş Yap"}
           </button>
         </form>
 

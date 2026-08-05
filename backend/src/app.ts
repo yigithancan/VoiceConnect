@@ -1,3 +1,4 @@
+import authRoutes from "./routes/authRoutes";
 import express from "express";
 import cors from "cors";
 import healthRoutes from "./routes/healthRoutes";
@@ -14,5 +15,6 @@ app.get("/", (_req, res) => {
 
 app.use("/api", healthRoutes);
 app.use("/api/workspace", workspaceRoutes);
+app.use("/api/auth", authRoutes);
 
 export default app;

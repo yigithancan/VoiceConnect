@@ -1,43 +1,52 @@
 # VoiceConnect
 
-VoiceConnect, Discord benzeri sesli ve görüntülü görüşme platformu olarak geliştirilen bir web uygulamasıdır.
+VoiceConnect, Discord benzeri sesli iletişim platformu olarak geliştirilen bir web projesidir.
 
-## Proje Amacı
+Projede kullanıcı kayıt/giriş sistemi, rol yapısı, kategorili ses kanalları, mikrofon/kamera/ekran paylaşımı arayüzü ve backend API yapısı hedeflenmektedir.
 
-Bu projenin amacı kullanıcıların sunucular oluşturabildiği, ses kanallarına katılabildiği, mikrofon, kamera ve ekran paylaşımı özelliklerini kullanabildiği bir haberleşme sistemi geliştirmektir.
-
-## Kullanılacak Teknolojiler
+## Kullanılan Teknolojiler
 
 ### Frontend
 - React
 - TypeScript
 - Tailwind CSS
 - React Router
-- Socket.IO Client
-- WebRTC
 
 ### Backend
 - Node.js
 - Express.js
 - TypeScript
-- Socket.IO
-- PostgreSQL
-- JWT
-- bcrypt
+- JWT Authentication
+- bcryptjs
+- dotenv
 
-### Genel
+### Veritabanı ve Docker
+- PostgreSQL
 - Docker
 - Docker Compose
-- Monolithic mimari
-- GitHub
 
 ## Proje Klasör Yapısı
 
 ```txt
 VoiceConnect/
   frontend/
+    src/
+      pages/
+      services/
+      types/
+
   backend/
+    src/
+      config/
+      controllers/
+      middlewares/
+      routes/
+      services/
+      sockets/
+      utils/
+
   database/
-  docs/
+    schema.sql
+
   docker-compose.yml
   README.md

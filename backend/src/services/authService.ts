@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { env } from "../config/env";
 
 type User = {
   id: number;
@@ -11,7 +12,7 @@ type User = {
 
 const users: User[] = [];
 
-const JWT_SECRET = "voiceconnect_secret_key";
+
 
 export const registerUser = async (
   username: string,
@@ -64,7 +65,7 @@ export const loginUser = async (email: string, password: string) => {
     email: user.email,
     role: user.role,
   },
-  JWT_SECRET,
+  env.JWT_SECRET,
   {
     expiresIn: "1d",
   }

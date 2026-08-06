@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import MediaRoom from "../components/MediaRoom";
 import {
   getCategories,
   getMembers,
@@ -16,9 +17,6 @@ function DashboardPage() {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
   const [currentUsername, setCurrentUsername] = useState("Kullanıcı");
-  const [isMicOpen, setIsMicOpen] = useState(false);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -64,6 +62,8 @@ function DashboardPage() {
 
   const handleLeave = () => {
     localStorage.removeItem("voiceconnect_logged_in");
+    localStorage.removeItem("voiceconnect_token");
+    localStorage.removeItem("voiceconnect_user");
     navigate("/login");
   };
 
@@ -169,76 +169,9 @@ function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-xl bg-slate-800 p-4">
-                <div className="flex h-36 items-center justify-center rounded-lg bg-slate-700 text-slate-400">
-                  {isCameraOpen ? "Kamera Açık" : "Kamera Kapalı"}
-                </div>
+            <MediaRoom username={currentUsername} />
 
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="font-medium">{currentUsername}</p>
-
-                  <span className="rounded-full bg-slate-700 px-3 py-1 text-xs text-slate-300">
-                    {isMicOpen ? "Mikrofon Açık" : "Mikrofon Kapalı"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-slate-800 p-4">
-                <div className="flex h-36 items-center justify-center rounded-lg bg-slate-700 text-slate-400">
-                  Kullanıcı Kamera Alanı
-                </div>
-
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="font-medium">Misafir</p>
-
-                  <span className="rounded-full bg-green-600/20 px-3 py-1 text-xs text-green-300">
-                    Bağlı
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {isScreenSharing && (
-              <div className="mt-6 rounded-xl border border-indigo-500 bg-indigo-950/40 p-4 text-indigo-200">
-                Ekran paylaşımı aktif. Burada paylaşılan ekran görüntüsü gösterilecek.
-              </div>
-            )}
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <button
-                onClick={() => setIsMicOpen(!isMicOpen)}
-                className={`rounded-lg px-4 py-3 ${
-                  isMicOpen
-                    ? "bg-green-600 hover:bg-green-700"
-                    : "bg-slate-800 hover:bg-slate-700"
-                }`}
-              >
-                {isMicOpen ? "Mikrofon Açık" : "Mikrofon Kapalı"}
-              </button>
-
-              <button
-                onClick={() => setIsCameraOpen(!isCameraOpen)}
-                className={`rounded-lg px-4 py-3 ${
-                  isCameraOpen
-                    ? "bg-green-600 hover:bg-green-700"
-                    : "bg-slate-800 hover:bg-slate-700"
-                }`}
-              >
-                {isCameraOpen ? "Kamera Açık" : "Kamera Kapalı"}
-              </button>
-
-              <button
-                onClick={() => setIsScreenSharing(!isScreenSharing)}
-                className={`rounded-lg px-4 py-3 ${
-                  isScreenSharing
-                    ? "bg-orange-600 hover:bg-orange-700"
-                    : "bg-indigo-600 hover:bg-indigo-700"
-                }`}
-              >
-                {isScreenSharing ? "Paylaşımı Durdur" : "Ekran Paylaş"}
-              </button>
-
+            <div className="mt-4">
               <button
                 onClick={handleLeave}
                 className="rounded-lg bg-red-600 px-4 py-3 hover:bg-red-700"

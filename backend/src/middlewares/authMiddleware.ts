@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { env } from "../config/env";
 
 export type AuthPayload = {
   id: number;
@@ -8,7 +9,7 @@ export type AuthPayload = {
   role: string;
 };
 
-const JWT_SECRET = "voiceconnect_secret_key";
+
 
 export const authMiddleware = (
   req: Request,
@@ -28,7 +29,7 @@ export const authMiddleware = (
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload;
+    const decoded = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
 
     (req as Request & { user: AuthPayload }).user = decoded;
 

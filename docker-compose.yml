@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: voiceconnect_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: voiceconnect_user
+      POSTGRES_PASSWORD: voiceconnect_password
+      POSTGRES_DB: voiceconnect_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - voiceconnect_postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+volumes:
+  voiceconnect_postgres_data:

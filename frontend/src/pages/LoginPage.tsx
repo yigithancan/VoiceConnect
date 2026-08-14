@@ -39,25 +39,25 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-white">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
-        <h1 className="text-center text-3xl font-bold text-indigo-400">
-          VoiceConnect
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-white">
+      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-8 shadow-xl">
+        <h1 className="text-center text-3xl font-bold text-orange-400">
+          Echora
         </h1>
 
-        <p className="mt-2 text-center text-slate-400">
+        <p className="mt-2 text-center text-zinc-400">
           Hesabına giriş yap
         </p>
 
         {message && (
-          <div className="mt-6 rounded-lg bg-slate-800 px-4 py-3 text-sm text-slate-300">
+          <div className="mt-6 rounded-lg bg-zinc-800 px-4 py-3 text-sm text-zinc-300">
             {message}
           </div>
         )}
 
         <form className="mt-6 space-y-4">
           <div>
-            <label className="block text-sm text-slate-300">
+            <label className="block text-sm text-zinc-300">
               E-posta
             </label>
 
@@ -65,13 +65,13 @@ function LoginPage() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-indigo-500"
+              className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 outline-none focus:border-orange-500"
               placeholder="ornek@mail.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-slate-300">
+            <label className="block text-sm text-zinc-300">
               Şifre
             </label>
 
@@ -79,7 +79,7 @@ function LoginPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-indigo-500"
+              className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 outline-none focus:border-orange-500"
               placeholder="********"
             />
           </div>
@@ -88,15 +88,15 @@ function LoginPage() {
             type="button"
             onClick={handleLogin}
             disabled={isLoading}
-            className="w-full rounded-lg bg-indigo-600 py-3 font-semibold hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg bg-orange-600 py-3 font-semibold hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? "Giriş yapılıyor..." : "Giriş Yap"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-400">
+        <p className="mt-6 text-center text-sm text-zinc-400">
           Hesabın yok mu?{" "}
-          <Link to="/register" className="text-indigo-400 hover:underline">
+          <Link to="/register" className="text-orange-400 hover:underline">
             Kayıt ol
           </Link>
         </p>

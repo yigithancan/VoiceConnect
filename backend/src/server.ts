@@ -3,6 +3,7 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import app from "./app";
 import { env } from "./config/env";
+import { pool } from "./config/database";
 
 const httpServer = createServer(app);
 
@@ -367,12 +368,47 @@ io.on("connection", (socket) => {
       /*
         Yeni kanala katıl.
       */
-      socket.join(
-        roomName
-      );
+                socket.join(
+            roomName
+          );
 
-      socket.data.currentRoom =
-        roomName;
+          /*
+            Kullanıcı odaya girince
+            channel_members tablosuna ekle.
+
+            Eğer zaten kayıtlıysa mevcut
+            rolünü değiştirme.
+          */
+          void pool
+            .query(
+              `
+                INSERT INTO channel_members (
+                  channel_id,
+                  user_id,
+                  role
+                )
+                VALUES ($1, $2, $3)
+                ON CONFLICT (
+                  channel_id,
+                  user_id
+                )
+                DO NOTHING
+              `,
+              [
+                Number(channelId),
+                authenticatedUser.id,
+                "member",
+              ]
+            )
+            .catch((error) => {
+              console.error(
+                "Oda üyeliği kaydedilemedi:",
+                error
+              );
+            });
+
+          socket.data.currentRoom =
+            roomName;
 
       /*
         Yeni kullanıcıya odadaki

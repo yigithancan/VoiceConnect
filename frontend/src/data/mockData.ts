@@ -1,6 +1,6 @@
 export const mockServer = {
   id: 1,
-  name: "VoiceConnect Sunucusu",
+  name: "Echora Sunucusu",
 };
 
 export const mockCategories = [

@@ -2,6 +2,12 @@ export type Channel = {
   id: number;
   name: string;
   type: string;
+
+  ownerId:
+    number | null;
+
+  ownerUsername:
+    string | null;
 };
 
 export type Category = {

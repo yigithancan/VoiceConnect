@@ -95,8 +95,8 @@ function RemoteUserCard({
       state.screenSharing);
 
   return (
-    <div className="rounded-xl bg-slate-800 p-4">
-      <div className="relative flex h-48 items-center justify-center overflow-hidden rounded-lg bg-slate-700">
+    <div className="rounded-xl bg-zinc-800 p-4">
+      <div className="relative flex h-48 items-center justify-center overflow-hidden rounded-lg bg-zinc-700">
         <video
           ref={videoRef}
           autoPlay
@@ -109,7 +109,7 @@ function RemoteUserCard({
         />
 
         {!state.connected && (
-          <span className="text-slate-400">
+          <span className="text-zinc-400">
             Bağlantı kuruluyor...
           </span>
         )}
@@ -117,14 +117,14 @@ function RemoteUserCard({
         {state.connected &&
           !state.camera &&
           !state.screenSharing && (
-            <span className="text-slate-400">
+            <span className="text-zinc-400">
               Kamera Kapalı
             </span>
           )}
 
         {state.connected &&
           state.screenSharing && (
-            <span className="absolute left-3 top-3 rounded-full bg-indigo-600 px-3 py-1 text-xs text-white">
+            <span className="absolute left-3 top-3 rounded-full bg-orange-600 px-3 py-1 text-xs text-white">
               Ekran Paylaşıyor
             </span>
           )}
@@ -137,7 +137,7 @@ function RemoteUserCard({
           </p>
 
           {state.connected && (
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-zinc-400">
               {state.microphone
                 ? "Mikrofon Açık"
                 : "Mikrofon Kapalı"}
@@ -149,7 +149,7 @@ function RemoteUserCard({
           className={`rounded-full px-3 py-1 text-xs ${
             state.connected
               ? "bg-green-600/20 text-green-300"
-              : "bg-slate-700 text-slate-300"
+              : "bg-zinc-700 text-zinc-300"
           }`}
         >
           {state.connected
@@ -1771,8 +1771,8 @@ function MediaRoom({
     <>
       <div className="grid gap-6 xl:grid-cols-3">
         {/* KENDİ KAMERAM */}
-        <div className="rounded-xl bg-slate-800 p-4">
-          <div className="relative flex h-48 items-center justify-center overflow-hidden rounded-lg bg-slate-700">
+        <div className="rounded-xl bg-zinc-800 p-4">
+          <div className="relative flex h-48 items-center justify-center overflow-hidden rounded-lg bg-zinc-700">
             <video
               ref={cameraVideoRef}
               autoPlay
@@ -1786,7 +1786,7 @@ function MediaRoom({
             />
 
             {!isCameraOpen && (
-              <span className="text-slate-400">
+              <span className="text-zinc-400">
                 Kamera Kapalı
               </span>
             )}
@@ -1797,7 +1797,7 @@ function MediaRoom({
               {username}
             </p>
 
-            <span className="rounded-full bg-slate-700 px-3 py-1 text-xs">
+            <span className="rounded-full bg-zinc-700 px-3 py-1 text-xs">
               {isMicOpen
                 ? "Mikrofon Açık"
                 : "Mikrofon Kapalı"}
@@ -1833,8 +1833,8 @@ function MediaRoom({
         {/* KANALDA BAŞKA KİMSE YOKSA */}
         {remoteUsers.length ===
           0 && (
-          <div className="rounded-xl bg-slate-800 p-4">
-            <div className="flex h-48 items-center justify-center rounded-lg bg-slate-700 text-slate-400">
+          <div className="rounded-xl bg-zinc-800 p-4">
+            <div className="flex h-48 items-center justify-center rounded-lg bg-zinc-700 text-zinc-400">
               Diğer kullanıcı bekleniyor
             </div>
 
@@ -1843,7 +1843,7 @@ function MediaRoom({
                 Diğer Kullanıcı
               </p>
 
-              <span className="rounded-full bg-slate-700 px-3 py-1 text-xs text-slate-300">
+              <span className="rounded-full bg-zinc-700 px-3 py-1 text-xs text-zinc-300">
                 Bekleniyor
               </span>
             </div>
@@ -1851,8 +1851,8 @@ function MediaRoom({
         )}
 
         {/* KENDİ EKRAN PAYLAŞIMIM */}
-        <div className="rounded-xl bg-slate-800 p-4">
-          <div className="relative flex h-48 items-center justify-center overflow-hidden rounded-lg bg-slate-700">
+        <div className="rounded-xl bg-zinc-800 p-4">
+          <div className="relative flex h-48 items-center justify-center overflow-hidden rounded-lg bg-zinc-700">
             <video
               ref={screenVideoRef}
               autoPlay
@@ -1866,7 +1866,7 @@ function MediaRoom({
             />
 
             {!isScreenSharing && (
-              <span className="text-slate-400">
+              <span className="text-zinc-400">
                 Ekran paylaşımı kapalı
               </span>
             )}

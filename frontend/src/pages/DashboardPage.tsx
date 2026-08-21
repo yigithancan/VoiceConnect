@@ -1022,7 +1022,7 @@ function DashboardPage() {
       "voiceconnect_selected_channel_id"
     );
 
-    navigate("/login");
+    navigate("/");
   };
 
   /*

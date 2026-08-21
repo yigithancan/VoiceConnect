@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: echora
+    runtime: node
+    plan: free
+    region: ohio
+    branch: main
+
+    buildCommand: cd backend && npm install && cd ../frontend && npm install && npm run build
+    startCommand: cd backend && npm start
+
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+
+      - key: JWT_SECRET
+        generateValue: true

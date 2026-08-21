@@ -1175,9 +1175,7 @@ function DashboardPage() {
           {/* SOL LOGO BAR */}
           <aside className="flex items-center gap-4 border-b border-zinc-800 bg-zinc-900 p-4 md:block md:w-20 md:border-b-0 md:border-r">
 
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-600 font-bold">
-              V
-            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-600 font-bold">E</div>
 
             <p className="font-bold text-orange-400 md:hidden">
               {serverInfo?.name}

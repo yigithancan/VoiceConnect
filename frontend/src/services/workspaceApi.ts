@@ -6,7 +6,7 @@ import type {
 } from "../types/workspace";
 
 const API_URL =
-  "http://localhost:5000/api";
+  "/api";
 
 export type ServerRole =
   | "owner"

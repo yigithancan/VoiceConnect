@@ -1,4 +1,5 @@
 import express from "express";
+import realtimeRoutes from "./routes/realtimeRoutes";
 import cors from "cors";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -17,6 +18,7 @@ app.use("/api", healthRoutes);
 app.use("/api/workspace", workspaceRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/database", databaseRoutes);
+app.use("/api/realtime", realtimeRoutes);
 
 const frontendDistCandidates = [
   path.resolve(process.cwd(), "frontend", "dist"),

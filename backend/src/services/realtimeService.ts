@@ -21,6 +21,16 @@ export type AddRealtimeTracksPayload = {
   autoDiscover?: boolean;
 };
 
+export type CloseRealtimeTracksPayload = {
+  tracks: {
+    mid: string;
+  }[];
+
+  sessionDescription?: RealtimeSessionDescription;
+
+  force?: boolean;
+};
+
 const getRealtimeConfig = () => {
   const appId =
     env.CLOUDFLARE_REALTIME_APP_ID;
@@ -107,6 +117,26 @@ export const addRealtimeTracks =
       `/sessions/${sessionId}/tracks/new`,
       {
         method: "POST",
+
+        body: JSON.stringify(payload),
+      }
+    );
+  };
+  export const closeRealtimeTracks =
+  async (
+    sessionId: string,
+    payload: CloseRealtimeTracksPayload
+  ) => {
+    if (!sessionId) {
+      throw new Error(
+        "Realtime session ID bulunamadı."
+      );
+    }
+
+    return realtimeRequest(
+      `/sessions/${sessionId}/tracks/close`,
+      {
+        method: "PUT",
 
         body: JSON.stringify(payload),
       }

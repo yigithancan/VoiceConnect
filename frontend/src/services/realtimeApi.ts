@@ -22,6 +22,16 @@ export type PublishRealtimeTracksPayload = {
   autoDiscover?: boolean;
 };
 
+export type CloseRealtimeTracksPayload = {
+  tracks: {
+    mid: string;
+  }[];
+
+  sessionDescription?: RealtimeSessionDescription;
+
+  force?: boolean;
+};
+
 type RealtimeSessionResponse = {
   success: boolean;
   message: string;
@@ -31,6 +41,17 @@ type RealtimeSessionResponse = {
 type PublishRealtimeTracksResponse = {
   success: boolean;
   message: string;
+
+  data: {
+    sessionDescription?: RealtimeSessionDescription;
+    tracks?: unknown[];
+  };
+};
+
+type CloseRealtimeTracksResponse = {
+  success: boolean;
+  message: string;
+
   data: {
     sessionDescription?: RealtimeSessionDescription;
     tracks?: unknown[];
@@ -117,6 +138,44 @@ export const publishRealtimeTracksRequest =
       throw new Error(
         result.message ||
           "Realtime track işlemi başarısız."
+      );
+    }
+
+    return result.data;
+  };
+
+export const closeRealtimeTracksRequest =
+  async (
+    sessionId: string,
+    payload: CloseRealtimeTracksPayload
+  ) => {
+    const token = getToken();
+
+    const response = await fetch(
+      `${API_URL}/session/${sessionId}/tracks/close`,
+      {
+        method: "PUT",
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const result =
+      (await response.json()) as
+        CloseRealtimeTracksResponse;
+
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+          "Realtime track kapatma işlemi başarısız."
       );
     }
 

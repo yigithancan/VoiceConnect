@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../services/socket";
 
+import {
+  createCloudflareMediaConnection,
+  publishCloudflareTracks,
+  closeCloudflareTracks,
+  closeCloudflareMediaConnection,
+  type CloudflareMediaConnection,
+  type PublishedCloudflareTrack,
+} from "../services/cloudflareMediaProvider";
+
 type MediaRoomProps = {
   username: string;
 
@@ -175,6 +184,26 @@ function MediaRoom({
 
   const screenStreamRef =
     useRef<MediaStream | null>(null);
+  
+    const cloudflareConnectionRef =
+  useRef<CloudflareMediaConnection | null>(
+    null
+  );
+
+  const cloudflareMicTrackRef =
+  useRef<PublishedCloudflareTrack | null>(
+    null
+  );
+
+const cloudflareCameraTrackRef =
+  useRef<PublishedCloudflareTrack | null>(
+    null
+  );
+
+const cloudflareScreenTrackRef =
+  useRef<PublishedCloudflareTrack | null>(
+    null
+  );
 
   /*
     ARTIK TEK PEER YOK.
@@ -1003,13 +1032,50 @@ function MediaRoom({
         setIsMicOpen(true);
 
         await sendAudioTrackToAllPeers(
-          audioTrack,
-          stream
-        );
+  audioTrack,
+  stream
+);
 
-        sendCurrentMediaStateToAll();
+/*
+  Eski P2P sistemi şimdilik çalışmaya
+  devam ediyor.
 
-        return;
+  Aynı mikrofon track'ini ayrıca
+  Cloudflare Realtime SFU'ya yayınlıyoruz.
+*/
+try {
+  if (!cloudflareConnectionRef.current) {
+    cloudflareConnectionRef.current =
+      await createCloudflareMediaConnection();
+  }
+
+  const publishedTracks =
+  await publishCloudflareTracks(
+    cloudflareConnectionRef.current,
+    [audioTrack]
+  );
+
+cloudflareMicTrackRef.current =
+  publishedTracks[0] ?? null;
+
+console.log(
+  "Cloudflare mikrofon yayını aktif:",
+  publishedTracks
+);
+} catch (cloudflareError) {
+  /*
+    Cloudflare tarafında hata olsa bile
+    mevcut P2P sistemini bozma.
+  */
+  console.error(
+    "Cloudflare mikrofon yayını başlatılamadı:",
+    cloudflareError
+  );
+}
+
+sendCurrentMediaStateToAll();
+
+return;
       }
 
       audioTrack.enabled =
@@ -1091,13 +1157,49 @@ function MediaRoom({
         );
 
         await sendCameraTrackToAllPeers(
-          videoTrack,
-          stream
-        );
+  videoTrack,
+  stream
+);
 
-        sendCurrentMediaStateToAll();
+/*
+  Mevcut P2P kamera yayını korunuyor.
 
-        return;
+  Aynı kamera track'ini ayrıca
+  Cloudflare Realtime SFU'ya yayınlıyoruz.
+*/
+try {
+  if (!cloudflareConnectionRef.current) {
+    cloudflareConnectionRef.current =
+      await createCloudflareMediaConnection();
+  }
+
+  const publishedTracks =
+  await publishCloudflareTracks(
+    cloudflareConnectionRef.current,
+    [videoTrack]
+  );
+
+cloudflareCameraTrackRef.current =
+  publishedTracks[0] ?? null;
+
+console.log(
+  "Cloudflare kamera yayını aktif:",
+  publishedTracks
+);
+} catch (cloudflareError) {
+  /*
+    Cloudflare tarafında hata olsa bile
+    mevcut P2P kamera sistemini bozma.
+  */
+  console.error(
+    "Cloudflare kamera yayını başlatılamadı:",
+    cloudflareError
+  );
+}
+
+sendCurrentMediaStateToAll();
+
+return;
       }
 
       videoTrack.enabled =
@@ -1138,78 +1240,144 @@ function MediaRoom({
   */
 
   const stopCameraAndMic =
-    async () => {
-      /*
-        Bütün kullanıcılara giden
-        mikrofonu kes.
-      */
-      for (const sender of audioSendersRef.current.values()) {
-        try {
-          await sender.replaceTrack(
-            null
-          );
-        } catch (error) {
-          console.error(
-            "Mikrofon gönderimi durdurulamadı:",
-            error
-          );
-        }
+  async () => {
+    /*
+      Bütün kullanıcılara giden
+      mikrofon sender'larını kapat.
+    */
+    for (
+      const sender of
+      audioSendersRef.current.values()
+    ) {
+      try {
+        await sender.replaceTrack(
+          null
+        );
+      } catch (error) {
+        console.error(
+          "Mikrofon gönderimi durdurulamadı:",
+          error
+        );
       }
+    }
 
-      /*
-        Ekran paylaşılmıyorsa
-        video sender'ları da kapat.
-      */
-      if (
-        !isScreenSharingRef.current
-      ) {
-        for (const sender of videoSendersRef.current.values()) {
-          try {
-            await sender.replaceTrack(
-              null
-            );
-          } catch (error) {
-            console.error(
-              "Video gönderimi durdurulamadı:",
-              error
-            );
-          }
-        }
+    /*
+      Medyayı tamamen kapattığımız için
+      ekran/kamera fark etmeksizin bütün
+      video sender'larını da kapat.
+    */
+    for (
+      const sender of
+      videoSendersRef.current.values()
+    ) {
+      try {
+        await sender.replaceTrack(
+          null
+        );
+      } catch (error) {
+        console.error(
+          "Video gönderimi durdurulamadı:",
+          error
+        );
       }
+    }
 
-      const stream =
-        localStreamRef.current;
+    /*
+      Mikrofon + kamera stream'ini kapat.
+    */
+    const localStream =
+      localStreamRef.current;
 
-      if (stream) {
-        stream
-          .getTracks()
-          .forEach((track) => {
-            track.stop();
-          });
-      }
+    if (localStream) {
+      localStream
+        .getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+    }
 
-      localStreamRef.current =
+    localStreamRef.current =
+      null;
+
+    /*
+      Ekran paylaşımını da tamamen kapat.
+    */
+    const screenStream =
+      screenStreamRef.current;
+
+    if (screenStream) {
+      screenStream
+        .getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+    }
+
+    screenStreamRef.current =
+      null;
+
+    /*
+      Local state/ref'leri sıfırla.
+    */
+    isCameraOpenRef.current =
+      false;
+
+    isMicOpenRef.current =
+      false;
+
+    isScreenSharingRef.current =
+      false;
+
+    setIsCameraOpen(false);
+    setIsMicOpen(false);
+    setIsScreenSharing(false);
+
+    /*
+      Local preview'ları temizle.
+    */
+    if (
+      cameraVideoRef.current
+    ) {
+      cameraVideoRef.current.srcObject =
         null;
+    }
 
-      isCameraOpenRef.current =
-        false;
+    if (
+      screenVideoRef.current
+    ) {
+      screenVideoRef.current.srcObject =
+        null;
+    }
 
-      isMicOpenRef.current =
-        false;
+    /*
+      Cloudflare bağlantısının tamamını
+      kapat ve eski track MID bilgilerini
+      temizle.
+    */
+    if (cloudflareConnectionRef.current) {
+      closeCloudflareMediaConnection(
+        cloudflareConnectionRef.current
+      );
 
-      setIsCameraOpen(false);
-      setIsMicOpen(false);
+      cloudflareConnectionRef.current =
+        null;
+    }
 
-      if (
-        cameraVideoRef.current
-      ) {
-        cameraVideoRef.current.srcObject =
-          null;
-      }
+    cloudflareMicTrackRef.current =
+      null;
 
-      sendCurrentMediaStateToAll();
-    };
+    cloudflareCameraTrackRef.current =
+      null;
 
+    cloudflareScreenTrackRef.current =
+      null;
+
+    console.log(
+      "Cloudflare medya bağlantısı kapatıldı."
+    );
+
+    sendCurrentMediaStateToAll();
+  };
   /*
     ------------------------------------------------
     EKRAN PAYLAŞIMINI DURDUR
@@ -1217,71 +1385,100 @@ function MediaRoom({
   */
 
   const stopScreenShare =
-    async () => {
-      const screenStream =
-        screenStreamRef.current;
+  async () => {
+    const screenStream =
+      screenStreamRef.current;
 
-      const cameraTrack =
-        localStreamRef.current
-          ?.getVideoTracks()[0];
+    const cameraTrack =
+      localStreamRef.current
+        ?.getVideoTracks()[0];
 
-      /*
-        Bütün peer'lerde ekran yerine
-        tekrar kameraya dön.
-      */
-      for (const [
-        socketId,
-        sender,
-      ] of videoSendersRef.current) {
-        try {
-          if (
-            isCameraOpenRef.current &&
-            cameraTrack &&
-            cameraTrack.readyState ===
-              "live"
-          ) {
-            await sender.replaceTrack(
-              cameraTrack
-            );
-          } else {
-            await sender.replaceTrack(
-              null
-            );
-          }
-        } catch (error) {
-          console.error(
-            `Ekran paylaşımı durdurulamadı (${socketId}):`,
-            error
+    /*
+      Cloudflare SFU'daki ekran
+      paylaşımı track'ini kapat.
+    */
+    if (
+      cloudflareConnectionRef.current &&
+      cloudflareScreenTrackRef.current
+    ) {
+      try {
+        await closeCloudflareTracks(
+          cloudflareConnectionRef.current,
+          [
+            cloudflareScreenTrackRef.current,
+          ]
+        );
+
+        console.log(
+          "Cloudflare ekran paylaşımı kapatıldı."
+        );
+
+        cloudflareScreenTrackRef.current =
+          null;
+      } catch (cloudflareError) {
+        console.error(
+          "Cloudflare ekran paylaşımı kapatılamadı:",
+          cloudflareError
+        );
+      }
+    }
+
+    /*
+      Eski P2P peer'lerde ekran yerine
+      tekrar kameraya dön.
+    */
+    for (const [
+      socketId,
+      sender,
+    ] of videoSendersRef.current) {
+      try {
+        if (
+          isCameraOpenRef.current &&
+          cameraTrack &&
+          cameraTrack.readyState ===
+            "live"
+        ) {
+          await sender.replaceTrack(
+            cameraTrack
+          );
+        } else {
+          await sender.replaceTrack(
+            null
           );
         }
+      } catch (error) {
+        console.error(
+          `Ekran paylaşımı durdurulamadı (${socketId}):`,
+          error
+        );
       }
+    }
 
-      if (screenStream) {
-        screenStream
-          .getTracks()
-          .forEach((track) => {
-            track.stop();
-          });
-      }
+    if (screenStream) {
+      screenStream
+        .getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+    }
 
-      screenStreamRef.current =
+    screenStreamRef.current =
+      null;
+
+    isScreenSharingRef.current =
+      false;
+
+    setIsScreenSharing(false);
+
+    if (
+      screenVideoRef.current
+    ) {
+      screenVideoRef.current.srcObject =
         null;
+    }
 
-      isScreenSharingRef.current =
-        false;
-
-      setIsScreenSharing(false);
-
-      if (
-        screenVideoRef.current
-      ) {
-        screenVideoRef.current.srcObject =
-          null;
-      }
-
-      sendCurrentMediaStateToAll();
-    };
-
+    sendCurrentMediaStateToAll();
+  };
   /*
     ------------------------------------------------
     EKRAN PAYLAŞIMINI BAŞLAT
@@ -1370,6 +1567,39 @@ function MediaRoom({
             socketId
           );
         }
+        
+        /*
+  Eski P2P ekran paylaşımı korunuyor.
+
+  Aynı ekran track'ini ayrıca
+  Cloudflare Realtime SFU'ya yayınlıyoruz.
+*/
+try {
+  if (!cloudflareConnectionRef.current) {
+    cloudflareConnectionRef.current =
+      await createCloudflareMediaConnection();
+  }
+
+  const publishedTracks =
+  await publishCloudflareTracks(
+    cloudflareConnectionRef.current,
+    [screenTrack]
+  );
+
+cloudflareScreenTrackRef.current =
+  publishedTracks[0] ?? null;
+
+console.log(
+  "Cloudflare ekran paylaşımı aktif:",
+  publishedTracks
+);
+} catch (cloudflareError) {
+  console.error(
+    "Cloudflare ekran paylaşımı başlatılamadı:",
+    cloudflareError
+  );
+}
+
 
         sendCurrentMediaStateToAll();
 
@@ -1739,22 +1969,30 @@ function MediaRoom({
   */
 
   useEffect(() => {
-    return () => {
-      localStreamRef.current
-        ?.getTracks()
-        .forEach((track) => {
-          track.stop();
-        });
+  return () => {
+    localStreamRef.current
+      ?.getTracks()
+      .forEach((track) => {
+        track.stop();
+      });
 
-      screenStreamRef.current
-        ?.getTracks()
-        .forEach((track) => {
-          track.stop();
-        });
+    screenStreamRef.current
+      ?.getTracks()
+      .forEach((track) => {
+        track.stop();
+      });
 
-      closeAllPeerConnections();
-    };
-  }, []);
+    if (cloudflareConnectionRef.current) {
+      closeCloudflareMediaConnection(
+        cloudflareConnectionRef.current
+      );
+
+      cloudflareConnectionRef.current = null;
+    }
+
+    closeAllPeerConnections();
+  };
+}, []);
 
   /*
     KENDİMİZ DIŞINDAKİ

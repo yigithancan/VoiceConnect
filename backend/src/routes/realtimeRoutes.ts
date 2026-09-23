@@ -3,6 +3,7 @@ import { Router } from "express";
 import { authMiddleware } from "../middlewares/authMiddleware";
 
 import {
+  closeTracks,
   createSession,
   publishTracks,
 } from "../controllers/realtimeController";
@@ -19,6 +20,12 @@ router.post(
   "/session/:sessionId/tracks",
   authMiddleware,
   publishTracks
+);
+
+router.put(
+  "/session/:sessionId/tracks/close",
+  authMiddleware,
+  closeTracks
 );
 
 export default router;

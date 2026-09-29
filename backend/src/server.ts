@@ -20,6 +20,16 @@ type ChannelUser = {
   socketId: string;
   username: string;
 };
+type CloudflareMediaKind =
+  | "microphone"
+  | "camera"
+  | "screen";
+
+type CloudflarePublication = {
+  publisherSessionId: string;
+  trackName: string;
+  kind: CloudflareMediaKind;
+};
 
 type AuthTokenPayload = {
   id: number;
@@ -413,6 +423,75 @@ io.on("connection", (socket) => {
         "existing-users",
         existingUsers
       );
+      /*
+  Kanala yeni giren kullanıcıya,
+  odada daha önceden bulunan
+  kullanıcıların aktif Cloudflare
+  yayınlarını gönder.
+*/
+existingUsers.forEach(
+  (existingSocketId) => {
+    const existingSocket =
+      io.sockets.sockets.get(
+        existingSocketId
+      );
+
+    if (!existingSocket) {
+      return;
+    }
+
+    const publications =
+      existingSocket.data
+        .cloudflarePublications as
+        | Partial<
+            Record<
+              CloudflareMediaKind,
+              CloudflarePublication
+            >
+          >
+        | undefined;
+
+    if (!publications) {
+      return;
+    }
+
+    const mediaKinds:
+      CloudflareMediaKind[] = [
+        "microphone",
+        "camera",
+        "screen",
+      ];
+
+    mediaKinds.forEach(
+      (kind) => {
+        const publication =
+          publications[kind];
+
+        if (!publication) {
+          return;
+        }
+
+        socket.emit(
+          "cloudflare-publication",
+          {
+            publisherSocketId:
+              existingSocketId,
+
+            publisherSessionId:
+              publication
+                .publisherSessionId,
+
+            trackName:
+              publication.trackName,
+
+            kind:
+              publication.kind,
+          }
+        );
+      }
+    );
+  }
+);
 
       /*
         Odadaki mevcut kişilere
@@ -698,6 +777,150 @@ io.on("connection", (socket) => {
       );
     }
   );
+  /*
+  ========================================
+  CLOUDFLARE SFU YAYIN BİLGİSİ
+  ========================================
+
+  Kullanıcının Cloudflare'a yayınladığı
+  track'in sessionId + trackName bilgisini
+  aynı kanaldaki diğer kullanıcılara iletir.
+*/
+
+socket.on(
+  "cloudflare-publication",
+  ({
+    publisherSessionId,
+    trackName,
+    kind,
+  }: CloudflarePublication) => {
+    const currentRoom =
+      socket.data.currentRoom as
+        | string
+        | undefined;
+
+    if (!currentRoom) {
+      return;
+    }
+
+    if (
+      !publisherSessionId ||
+      !trackName
+    ) {
+      return;
+    }
+
+    if (
+      kind !== "microphone" &&
+      kind !== "camera" &&
+      kind !== "screen"
+    ) {
+      return;
+    }
+
+    /*
+      Kullanıcının aktif Cloudflare
+      yayınlarını socket üzerinde sakla.
+
+      Böylece kanala sonradan giren
+      kullanıcıya da mevcut yayınları
+      gönderebileceğiz.
+    */
+    const publications =
+      (socket.data
+        .cloudflarePublications ??
+        {}) as Partial<
+          Record<
+            CloudflareMediaKind,
+            CloudflarePublication
+          >
+        >;
+
+    publications[kind] = {
+      publisherSessionId,
+      trackName,
+      kind,
+    };
+
+    socket.data.cloudflarePublications =
+      publications;
+
+    /*
+      Aynı kanaldaki diğer kişilere
+      yayının adresini gönder.
+    */
+    socket
+      .to(currentRoom)
+      .emit(
+        "cloudflare-publication",
+        {
+          publisherSocketId:
+            socket.id,
+
+          publisherSessionId,
+
+          trackName,
+
+          kind,
+        }
+      );
+
+    console.log(
+      `Cloudflare yayın bilgisi: ${socket.id} | ${kind} | ${trackName}`
+    );
+  }
+);
+
+/*
+  ========================================
+  CLOUDFLARE YAYIN KALDIRILDI
+  ========================================
+*/
+
+socket.on(
+  "cloudflare-publication-removed",
+  ({
+    kind,
+  }: {
+    kind: CloudflareMediaKind;
+  }) => {
+    const currentRoom =
+      socket.data.currentRoom as
+        | string
+        | undefined;
+
+    if (!currentRoom) {
+      return;
+    }
+
+    const publications =
+      socket.data
+        .cloudflarePublications as
+        | Partial<
+            Record<
+              CloudflareMediaKind,
+              CloudflarePublication
+            >
+          >
+        | undefined;
+
+    if (publications) {
+      delete publications[kind];
+    }
+
+    socket
+      .to(currentRoom)
+      .emit(
+        "cloudflare-publication-removed",
+        {
+          publisherSocketId:
+            socket.id,
+
+          kind,
+        }
+      );
+  }
+);
 
   /*
     ========================================

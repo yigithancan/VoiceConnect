@@ -4,8 +4,10 @@ import {
   addRealtimeTracks,
   closeRealtimeTracks,
   createRealtimeSession,
+  renegotiateRealtimeSession,
   type AddRealtimeTracksPayload,
   type CloseRealtimeTracksPayload,
+  type RenegotiateRealtimeSessionPayload,
 } from "../services/realtimeService";
 
 export const createSession: RequestHandler =
@@ -161,6 +163,72 @@ export const closeTracks: RequestHandler =
         success: false,
         message:
           "Cloudflare Realtime track kapatma işlemi başarısız.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Bilinmeyen hata",
+      });
+    }
+  };
+  export const renegotiateSession: RequestHandler =
+  async (req, res) => {
+    try {
+      const sessionIdParam =
+        req.params.sessionId;
+
+      const sessionId =
+        Array.isArray(sessionIdParam)
+          ? sessionIdParam[0]
+          : sessionIdParam;
+
+      const payload =
+        req.body as RenegotiateRealtimeSessionPayload;
+
+      if (!sessionId) {
+        res.status(400).json({
+          success: false,
+          message:
+            "Realtime session ID gerekli.",
+        });
+
+        return;
+      }
+
+      if (
+        !payload.sessionDescription ||
+        !payload.sessionDescription.sdp
+      ) {
+        res.status(400).json({
+          success: false,
+          message:
+            "Session description gerekli.",
+        });
+
+        return;
+      }
+
+      const result =
+        await renegotiateRealtimeSession(
+          sessionId,
+          payload
+        );
+
+      res.status(200).json({
+        success: true,
+        message:
+          "Realtime renegotiate işlemi başarılı.",
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "Realtime renegotiate controller hatası:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Cloudflare Realtime renegotiate işlemi başarısız.",
         error:
           error instanceof Error
             ? error.message

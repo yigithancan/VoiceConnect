@@ -16,6 +16,16 @@ export type RealtimeTrack = {
   sessionId?: string;
 };
 
+export type RealtimeTrackResult = {
+  location?: "local" | "remote";
+  mid?: string;
+  trackName?: string;
+  sessionId?: string;
+
+  errorCode?: string;
+  errorDescription?: string;
+};
+
 export type PublishRealtimeTracksPayload = {
   sessionDescription?: RealtimeSessionDescription;
   tracks?: RealtimeTrack[];
@@ -32,6 +42,11 @@ export type CloseRealtimeTracksPayload = {
   force?: boolean;
 };
 
+export type RenegotiateRealtimeSessionPayload = {
+  sessionDescription:
+    RealtimeSessionDescription;
+};
+
 type RealtimeSessionResponse = {
   success: boolean;
   message: string;
@@ -43,12 +58,28 @@ type PublishRealtimeTracksResponse = {
   message: string;
 
   data: {
+    sessionDescription?:
+      RealtimeSessionDescription;
+
+    tracks?:
+      RealtimeTrackResult[];
+
+    requiresImmediateRenegotiation?:
+      boolean;
+  };
+};
+
+type CloseRealtimeTracksResponse = {
+  success: boolean;
+  message: string;
+
+  data: {
     sessionDescription?: RealtimeSessionDescription;
     tracks?: unknown[];
   };
 };
 
-type CloseRealtimeTracksResponse = {
+type RenegotiateRealtimeSessionResponse = {
   success: boolean;
   message: string;
 
@@ -176,6 +207,45 @@ export const closeRealtimeTracksRequest =
       throw new Error(
         result.message ||
           "Realtime track kapatma işlemi başarısız."
+      );
+    }
+
+    return result.data;
+  };
+
+export const renegotiateRealtimeSessionRequest =
+  async (
+    sessionId: string,
+    payload:
+      RenegotiateRealtimeSessionPayload
+  ) => {
+    const token = getToken();
+
+    const response = await fetch(
+      `${API_URL}/session/${sessionId}/renegotiate`,
+      {
+        method: "PUT",
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const result =
+      (await response.json()) as
+        RenegotiateRealtimeSessionResponse;
+
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+          "Realtime renegotiate işlemi başarısız."
       );
     }
 

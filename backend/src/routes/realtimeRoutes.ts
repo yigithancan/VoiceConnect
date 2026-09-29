@@ -6,6 +6,7 @@ import {
   closeTracks,
   createSession,
   publishTracks,
+  renegotiateSession,
 } from "../controllers/realtimeController";
 
 const router = Router();
@@ -26,6 +27,12 @@ router.put(
   "/session/:sessionId/tracks/close",
   authMiddleware,
   closeTracks
+);
+
+router.put(
+  "/session/:sessionId/renegotiate",
+  authMiddleware,
+  renegotiateSession
 );
 
 export default router;

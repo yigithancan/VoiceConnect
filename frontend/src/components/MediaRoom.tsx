@@ -90,13 +90,28 @@ function RemoteUserCard({
         state.screenSharing)
     ) {
       void videoRef.current
-        .play()
-        .catch((error) => {
-          console.error(
-            "Uzak video oynatılamadı:",
-            error
-          );
-        });
+  .play()
+  .catch((error) => {
+    /*
+      Kamera / ekran paylaşımı arasında
+      hızlı geçiş yapılırken browser,
+      önceki play() isteğini iptal edebilir.
+
+      Bu gerçek bir medya bağlantı
+      hatası değildir.
+    */
+    if (
+      error instanceof DOMException &&
+      error.name === "AbortError"
+    ) {
+      return;
+    }
+
+    console.error(
+      "Uzak video oynatılamadı:",
+      error
+    );
+  });
     }
   }, [
     stream,
@@ -230,6 +245,18 @@ const cloudflareScreenTrackRef =
     >
   >(new Map());
 
+  const cloudflareRemoteTracksRef =
+  useRef<
+    Map<
+      string,
+      {
+        microphone?: MediaStreamTrack;
+        camera?: MediaStreamTrack;
+        screen?: MediaStreamTrack;
+      }
+    >
+  >(new Map());
+
   /*
     ARTIK TEK PEER YOK.
 
@@ -357,6 +384,80 @@ const cloudflareScreenTrackRef =
           ...previous[socketId],
           ...state,
         },
+      })
+    );
+  };
+
+  const rebuildCloudflareRemoteStream =
+  (
+    publisherSocketId: string
+  ) => {
+    const remoteTracks =
+      cloudflareRemoteTracksRef.current.get(
+        publisherSocketId
+      );
+
+    if (!remoteTracks) {
+      return;
+    }
+
+    const selectedTracks:
+      MediaStreamTrack[] = [];
+
+    /*
+      Mikrofon varsa her zaman stream'de
+      tutuyoruz ki ses kaybolmasın.
+    */
+    if (
+      remoteTracks.microphone &&
+      remoteTracks.microphone.readyState ===
+        "live"
+    ) {
+      selectedTracks.push(
+        remoteTracks.microphone
+      );
+    }
+
+    /*
+      Ekran paylaşımı varsa kameradan
+      öncelikli olarak ekranı göster.
+
+      Ekran paylaşımı yoksa kameraya dön.
+    */
+    if (
+      remoteTracks.screen &&
+      remoteTracks.screen.readyState ===
+        "live"
+    ) {
+      selectedTracks.push(
+        remoteTracks.screen
+      );
+    } else if (
+      remoteTracks.camera &&
+      remoteTracks.camera.readyState ===
+        "live"
+    ) {
+      selectedTracks.push(
+        remoteTracks.camera
+      );
+    }
+
+    const updatedStream =
+      new MediaStream(
+        selectedTracks
+      );
+
+    remoteStreamsRef.current.set(
+      publisherSocketId,
+      updatedStream
+    );
+
+    setRemoteStreams(
+      (previous) => ({
+        ...previous,
+
+        [publisherSocketId]:
+          updatedStream,
       })
     );
   };
@@ -2109,6 +2210,31 @@ const handleCloudflarePublication =
                   remoteKind,
               } = publicationInfo;
 
+              const currentRemoteTracks =
+  cloudflareRemoteTracksRef.current.get(
+    remotePublisherSocketId
+  ) ?? {};
+
+if (remoteKind === "microphone") {
+  currentRemoteTracks.microphone =
+    remoteTrack.track;
+}
+
+if (remoteKind === "camera") {
+  currentRemoteTracks.camera =
+    remoteTrack.track;
+}
+
+if (remoteKind === "screen") {
+  currentRemoteTracks.screen =
+    remoteTrack.track;
+}
+
+cloudflareRemoteTracksRef.current.set(
+  remotePublisherSocketId,
+  currentRemoteTracks
+);
+
               console.log(
                 "Cloudflare remote track geldi:",
                 {
@@ -2118,33 +2244,9 @@ const handleCloudflarePublication =
                 }
               );
 
-              let stream =
-                remoteStreamsRef.current.get(
-                  remotePublisherSocketId
-                );
-
-              if (!stream) {
-                stream =
-                  new MediaStream();
-
-                remoteStreamsRef.current.set(
-                  remotePublisherSocketId,
-                  stream
-                );
-              }
-
-              stream.addTrack(
-                remoteTrack.track
-              );
-
-              setRemoteStreams(
-                (previous) => ({
-                  ...previous,
-
-                  [remotePublisherSocketId]:
-                    stream!,
-                })
-              );
+              rebuildCloudflareRemoteStream(
+  remotePublisherSocketId
+);
 
               updateRemoteMediaState(
                 remotePublisherSocketId,
@@ -2204,6 +2306,127 @@ const handleCloudflarePublication =
       );
     }
   };
+  
+  const handleCloudflarePublicationRemoved =
+  ({
+    publisherSocketId,
+    kind,
+  }: {
+    publisherSocketId: string;
+    kind:
+      | "microphone"
+      | "camera"
+      | "screen";
+  }) => {
+    const remoteTracks =
+      cloudflareRemoteTracksRef.current.get(
+        publisherSocketId
+      );
+
+    if (!remoteTracks) {
+      return;
+    }
+
+    const trackToRemove =
+      remoteTracks[kind];
+
+    if (trackToRemove) {
+      const currentStream =
+        remoteStreamsRef.current.get(
+          publisherSocketId
+        );
+
+      if (currentStream) {
+        currentStream.removeTrack(
+          trackToRemove
+        );
+
+        const updatedStream =
+          new MediaStream(
+            currentStream.getTracks()
+          );
+
+        remoteStreamsRef.current.set(
+          publisherSocketId,
+          updatedStream
+        );
+
+        setRemoteStreams(
+          (previous) => ({
+            ...previous,
+
+            [publisherSocketId]:
+              updatedStream,
+          })
+        );
+      }
+
+      trackToRemove.stop();
+
+delete remoteTracks[kind];
+
+/*
+  Kapatılan track'i çıkardıktan sonra
+  remote stream'i yeniden oluştur.
+
+  Örneğin ekran paylaşımı kapandıysa
+  varsa tekrar kameraya döner.
+*/
+rebuildCloudflareRemoteStream(
+  publisherSocketId
+);
+}
+
+    for (const [
+      key,
+      publicationInfo,
+    ] of cloudflareRemotePublicationMapRef.current) {
+      if (
+        publicationInfo.publisherSocketId ===
+          publisherSocketId &&
+        publicationInfo.kind === kind
+      ) {
+        cloudflareRemotePublicationMapRef.current.delete(
+          key
+        );
+      }
+    }
+
+    if (kind === "microphone") {
+      updateRemoteMediaState(
+        publisherSocketId,
+        {
+          microphone: false,
+        }
+      );
+    }
+
+    if (kind === "camera") {
+      updateRemoteMediaState(
+        publisherSocketId,
+        {
+          camera: false,
+        }
+      );
+    }
+
+    if (kind === "screen") {
+      updateRemoteMediaState(
+        publisherSocketId,
+        {
+          screenSharing: false,
+        }
+      );
+    }
+
+    console.log(
+      "Cloudflare remote yayın kaldırıldı:",
+      {
+        publisherSocketId,
+        kind,
+      }
+    );
+  };
 
     socket.on(
       "existing-users",
@@ -2250,6 +2473,11 @@ const handleCloudflarePublication =
 );
 
     return () => {
+socket.on(
+  "cloudflare-publication-removed",
+  handleCloudflarePublicationRemoved
+);
+
       socket.off(
         "existing-users",
         handleExistingUsers
@@ -2292,6 +2520,10 @@ const handleCloudflarePublication =
       socket.off(
   "cloudflare-publication",
   handleCloudflarePublication
+);
+socket.off(
+  "cloudflare-publication-removed",
+  handleCloudflarePublicationRemoved
 );
     };
   }, []);

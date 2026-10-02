@@ -97,6 +97,112 @@ const waitForIceGatheringComplete = async (
   });
 };
 
+const waitForPeerConnectionConnected =
+  async (
+    peerConnection:
+      RTCPeerConnection,
+    timeoutMs = 10000
+  ) => {
+    if (
+      peerConnection.connectionState ===
+      "connected"
+    ) {
+      return;
+    }
+
+    await new Promise<void>(
+      (resolve, reject) => {
+        let finished = false;
+
+        const cleanup = () => {
+          peerConnection.removeEventListener(
+            "connectionstatechange",
+            handleConnectionStateChange
+          );
+
+          window.clearTimeout(
+            timeoutId
+          );
+        };
+
+        const finishSuccess = () => {
+          if (finished) {
+            return;
+          }
+
+          finished = true;
+          cleanup();
+          resolve();
+        };
+
+        const finishError = (
+          message: string
+        ) => {
+          if (finished) {
+            return;
+          }
+
+          finished = true;
+          cleanup();
+
+          reject(
+            new Error(message)
+          );
+        };
+
+        const handleConnectionStateChange =
+          () => {
+            const state =
+              peerConnection
+                .connectionState;
+
+            console.log(
+              "Cloudflare PeerConnection durumu:",
+              state
+            );
+
+            if (
+              state === "connected"
+            ) {
+              finishSuccess();
+              return;
+            }
+
+            if (
+              state === "failed" ||
+              state === "closed"
+            ) {
+              finishError(
+                `Cloudflare PeerConnection bağlanamadı: ${state}`
+              );
+            }
+          };
+
+        const timeoutId =
+          window.setTimeout(
+            () => {
+              finishError(
+                `Cloudflare PeerConnection ${timeoutMs} ms içinde bağlanamadı.`
+              );
+            },
+            timeoutMs
+          );
+
+        peerConnection.addEventListener(
+          "connectionstatechange",
+          handleConnectionStateChange
+        );
+
+        /*
+          Listener eklenene kadar
+          connection connected olmuş
+          olabilir. Bir kez daha kontrol et.
+        */
+        handleConnectionStateChange();
+      }
+    );
+  };
+
 /*
  * ------------------------------------------------
  * CLOUDFLARE MEDIA CONNECTION
@@ -298,10 +404,23 @@ const publishCloudflareTracksNow =
      * Cloudflare SDP answer'ını uygula.
      */
     await peerConnection.setRemoteDescription(
-      answer
-    );
+  answer
+);
 
-    return realtimeTracks.map(
+/*
+ * İlk SDP exchange tamamlandıktan sonra
+ * Cloudflare bağlantısının gerçekten
+ * connected olmasını bekliyoruz.
+ *
+ * Böylece aynı session üzerinde kamera,
+ * mikrofon veya ekran için ikinci bir
+ * tracks/new isteği çok erken gitmiyor.
+ */
+await waitForPeerConnectionConnected(
+  peerConnection
+);
+
+return realtimeTracks.map(
       (track) => ({
         location: "local",
         mid: track.mid!,

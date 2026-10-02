@@ -55,8 +55,11 @@ const waitForIceGatheringComplete =
   async (
     peerConnection:
       RTCPeerConnection,
-    timeoutMs = 10000
+    timeoutMs = 3000
   ) => {
+    /*
+      ICE tamamen bittiyse direkt devam et.
+    */
     if (
       peerConnection.iceGatheringState ===
       "complete"
@@ -72,10 +75,19 @@ const waitForIceGatheringComplete =
           | number
           | undefined;
 
+        let candidateTimeoutId:
+          | number
+          | undefined;
+
         const cleanup = () => {
           peerConnection.removeEventListener(
             "icegatheringstatechange",
             handleIceGatheringStateChange
+          );
+
+          peerConnection.removeEventListener(
+            "icecandidate",
+            handleIceCandidate
           );
 
           if (
@@ -83,6 +95,15 @@ const waitForIceGatheringComplete =
           ) {
             window.clearTimeout(
               timeoutId
+            );
+          }
+
+          if (
+            candidateTimeoutId !==
+            undefined
+          ) {
+            window.clearTimeout(
+              candidateTimeoutId
             );
           }
         };
@@ -110,11 +131,49 @@ const waitForIceGatheringComplete =
             }
           };
 
+        const handleIceCandidate = (
+          event: RTCPeerConnectionIceEvent
+        ) => {
+          /*
+            Kullanılabilir bir candidate
+            oluştuğunda uzun süre
+            beklemeye gerek yok.
+
+            Çok hızlı kesmeyip kısa bir
+            süre daha candidate topluyoruz.
+          */
+          if (event.candidate) {
+            if (
+              candidateTimeoutId !==
+              undefined
+            ) {
+              window.clearTimeout(
+                candidateTimeoutId
+              );
+            }
+
+            candidateTimeoutId =
+              window.setTimeout(
+                finish,
+                250
+              );
+          }
+        };
+
         peerConnection.addEventListener(
           "icegatheringstatechange",
           handleIceGatheringStateChange
         );
 
+        peerConnection.addEventListener(
+          "icecandidate",
+          handleIceCandidate
+        );
+
+        /*
+          En kötü ihtimalle 3 saniye
+          sonra devam et.
+        */
         timeoutId =
           window.setTimeout(
             finish,

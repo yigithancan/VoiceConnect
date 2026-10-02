@@ -798,43 +798,26 @@ const cloudflareScreenTrackRef =
     /*
       Karşı kullanıcıdan medya geldi.
     */
-    peerConnection.ontrack = (
-      event
-    ) => {
-      const track =
-        event.track;
+    /*
+  Eski P2P bağlantısı şu an
+  sadece geçiş sürecinde tutuluyor.
 
-      const alreadyExists =
-        remoteStream
-          .getTracks()
-          .some(
-            (existingTrack) =>
-              existingTrack.id ===
-              track.id
-          );
-
-      if (!alreadyExists) {
-        remoteStream.addTrack(
-          track
-        );
-      }
-
-      setRemoteStreams(
-        (previous) => ({
-          ...previous,
-
-          [remoteSocketId]:
-            remoteStream,
-        })
-      );
-
-      updateRemoteMediaState(
-        remoteSocketId,
-        {
-          connected: true,
-        }
-      );
-    };
+  Remote ses, kamera ve ekran
+  artık Cloudflare SFU üzerinden
+  alınacağı için P2P track'ini
+  arayüze eklemiyoruz.
+*/
+peerConnection.ontrack = (
+  event
+) => {
+  console.log(
+    "P2P remote track yok sayıldı:",
+    {
+      remoteSocketId,
+      kind: event.track.kind,
+    }
+  );
+};
 
     peerConnection.onconnectionstatechange =
       () => {
@@ -2467,21 +2450,21 @@ rebuildCloudflareRemoteStream(
       "channel-users",
       handleChannelUsers
     );
-    socket.on(
+   socket.on(
   "cloudflare-publication",
   handleCloudflarePublication
 );
 
-    return () => {
 socket.on(
   "cloudflare-publication-removed",
   handleCloudflarePublicationRemoved
 );
 
-      socket.off(
-        "existing-users",
-        handleExistingUsers
-      );
+return () => {
+  socket.off(
+    "existing-users",
+    handleExistingUsers
+  );
 
       socket.off(
         "user-joined",

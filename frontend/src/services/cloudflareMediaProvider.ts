@@ -31,77 +31,146 @@ export type PublishedCloudflareTrack = {
   trackName: string;
 };
 
-const waitForIceGatheringComplete = async (
-  peerConnection: RTCPeerConnection,
-  timeoutMs = 10000
-) => {
-  if (
-    peerConnection.iceGatheringState ===
-    "complete"
-  ) {
-    return;
-  }
+const waitForIceGatheringComplete =
+  async (
+    peerConnection:
+      RTCPeerConnection,
+    timeoutMs = 6000
+  ) => {
+    if (
+      peerConnection.iceGatheringState ===
+      "complete"
+    ) {
+      return;
+    }
 
-  await new Promise<void>((resolve) => {
-    let finished = false;
+    await new Promise<void>(
+      (resolve) => {
+        let finished = false;
 
-    let timeoutId:
-      | number
-      | undefined;
+        let timeoutId:
+          | number
+          | undefined;
 
-    const cleanup = () => {
-      peerConnection.removeEventListener(
-        "icegatheringstatechange",
-        handleIceGatheringStateChange
-      );
+        let candidateTimeoutId:
+          | number
+          | undefined;
 
-      if (timeoutId !== undefined) {
-        window.clearTimeout(
-          timeoutId
+        const cleanup = () => {
+          peerConnection.removeEventListener(
+            "icegatheringstatechange",
+            handleIceGatheringStateChange
+          );
+
+          peerConnection.removeEventListener(
+            "icecandidate",
+            handleIceCandidate
+          );
+
+          if (
+            timeoutId !== undefined
+          ) {
+            window.clearTimeout(
+              timeoutId
+            );
+          }
+
+          if (
+            candidateTimeoutId !==
+            undefined
+          ) {
+            window.clearTimeout(
+              candidateTimeoutId
+            );
+          }
+        };
+
+        const finish = () => {
+          if (finished) {
+            return;
+          }
+
+          finished = true;
+
+          cleanup();
+
+          resolve();
+        };
+
+        const handleIceGatheringStateChange =
+          () => {
+            if (
+              peerConnection
+                .iceGatheringState ===
+              "complete"
+            ) {
+              finish();
+            }
+          };
+
+        const handleIceCandidate = (
+          event: RTCPeerConnectionIceEvent
+        ) => {
+          /*
+            null candidate = ICE gathering
+            tamamlandı.
+          */
+          if (!event.candidate) {
+            finish();
+            return;
+          }
+
+          /*
+            Yeni candidate geldikçe süreyi
+            yeniden başlat.
+
+            250 ms çok agresifti.
+            1500 ms daha güvenli.
+          */
+          if (
+            candidateTimeoutId !==
+            undefined
+          ) {
+            window.clearTimeout(
+              candidateTimeoutId
+            );
+          }
+
+          candidateTimeoutId =
+            window.setTimeout(
+              finish,
+              1500
+            );
+        };
+
+        peerConnection.addEventListener(
+          "icegatheringstatechange",
+          handleIceGatheringStateChange
         );
+
+        peerConnection.addEventListener(
+          "icecandidate",
+          handleIceCandidate
+        );
+
+        /*
+          Her ihtimale karşı en fazla
+          6 saniye bekle.
+        */
+        timeoutId =
+          window.setTimeout(
+            finish,
+            timeoutMs
+          );
       }
-    };
-
-    const finish = () => {
-      if (finished) {
-        return;
-      }
-
-      finished = true;
-
-      cleanup();
-
-      resolve();
-    };
-
-    const handleIceGatheringStateChange =
-      () => {
-        if (
-          peerConnection.iceGatheringState ===
-          "complete"
-        ) {
-          finish();
-        }
-      };
-
-    peerConnection.addEventListener(
-      "icegatheringstatechange",
-      handleIceGatheringStateChange
     );
-
-    timeoutId =
-      window.setTimeout(
-        finish,
-        timeoutMs
-      );
-  });
-};
+  };
 
 const waitForPeerConnectionConnected =
   async (
     peerConnection:
       RTCPeerConnection,
-    timeoutMs = 10000
+    timeoutMs = 15000
   ) => {
     if (
       peerConnection.connectionState ===
@@ -118,6 +187,11 @@ const waitForPeerConnectionConnected =
           peerConnection.removeEventListener(
             "connectionstatechange",
             handleConnectionStateChange
+          );
+
+          peerConnection.removeEventListener(
+            "iceconnectionstatechange",
+            handleIceConnectionStateChange
           );
 
           window.clearTimeout(
@@ -150,16 +224,31 @@ const waitForPeerConnectionConnected =
           );
         };
 
+        const logStates = () => {
+          console.log(
+            "Cloudflare bağlantı durumları:",
+            {
+              connectionState:
+                peerConnection.connectionState,
+
+              iceConnectionState:
+                peerConnection.iceConnectionState,
+
+              iceGatheringState:
+                peerConnection.iceGatheringState,
+
+              signalingState:
+                peerConnection.signalingState,
+            }
+          );
+        };
+
         const handleConnectionStateChange =
           () => {
-            const state =
-              peerConnection
-                .connectionState;
+            logStates();
 
-            console.log(
-              "Cloudflare PeerConnection durumu:",
-              state
-            );
+            const state =
+              peerConnection.connectionState;
 
             if (
               state === "connected"
@@ -178,9 +267,26 @@ const waitForPeerConnectionConnected =
             }
           };
 
+        const handleIceConnectionStateChange =
+          () => {
+            logStates();
+
+            if (
+              peerConnection
+                .iceConnectionState ===
+              "failed"
+            ) {
+              finishError(
+                "Cloudflare ICE bağlantısı başarısız oldu."
+              );
+            }
+          };
+
         const timeoutId =
           window.setTimeout(
             () => {
+              logStates();
+
               finishError(
                 `Cloudflare PeerConnection ${timeoutMs} ms içinde bağlanamadı.`
               );
@@ -193,11 +299,11 @@ const waitForPeerConnectionConnected =
           handleConnectionStateChange
         );
 
-        /*
-          Listener eklenene kadar
-          connection connected olmuş
-          olabilir. Bir kez daha kontrol et.
-        */
+        peerConnection.addEventListener(
+          "iceconnectionstatechange",
+          handleIceConnectionStateChange
+        );
+
         handleConnectionStateChange();
       }
     );

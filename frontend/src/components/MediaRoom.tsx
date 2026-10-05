@@ -74,14 +74,51 @@ function RemoteUserCard({
   state,
 }: RemoteUserCardProps) {
   const videoRef =
-    useRef<HTMLVideoElement | null>(null);
+  useRef<HTMLVideoElement | null>(null);
+
+const audioRef =
+  useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (!videoRef.current) {
-      return;
-    }
+  const videoElement =
+    videoRef.current;
 
-    videoRef.current.srcObject =
+  const audioElement =
+    audioRef.current;
+
+  let retryAudioPlayback:
+    (() => void) | null =
+    null;
+
+  const removeAudioRetryListeners =
+    () => {
+      if (!retryAudioPlayback) {
+        return;
+      }
+
+      window.removeEventListener(
+        "pointerdown",
+        retryAudioPlayback
+      );
+
+      window.removeEventListener(
+        "keydown",
+        retryAudioPlayback
+      );
+
+      retryAudioPlayback =
+        null;
+    };
+
+  /*
+    Kamera / ekran görüntüsü.
+
+    Video muted olduğu için
+    uzaktaki mikrofon sesi buradan
+    ikinci kez çalmaz.
+  */
+  if (videoElement) {
+    videoElement.srcObject =
       stream ?? null;
 
     if (
@@ -89,35 +126,109 @@ function RemoteUserCard({
       (state.camera ||
         state.screenSharing)
     ) {
-      void videoRef.current
-  .play()
-  .catch((error) => {
-    /*
-      Kamera / ekran paylaşımı arasında
-      hızlı geçiş yapılırken browser,
-      önceki play() isteğini iptal edebilir.
+      void videoElement
+        .play()
+        .catch((error) => {
+          if (
+            error instanceof
+              DOMException &&
+            error.name ===
+              "AbortError"
+          ) {
+            return;
+          }
 
-      Bu gerçek bir medya bağlantı
-      hatası değildir.
-    */
+          console.error(
+            "Uzak video oynatılamadı:",
+            error
+          );
+        });
+    }
+  }
+
+  /*
+    Mikrofon sesi ayrı audio
+    elementinden oynatılıyor.
+  */
+  if (audioElement) {
+    audioElement.srcObject =
+      stream ?? null;
+
     if (
-      error instanceof DOMException &&
-      error.name === "AbortError"
+      stream &&
+      state.microphone
     ) {
-      return;
-    }
+      void audioElement
+        .play()
+        .catch((error) => {
+          if (
+            error instanceof
+              DOMException &&
+            error.name ===
+              "NotAllowedError"
+          ) {
+            /*
+              Tarayıcı otomatik sesi
+              engellerse kullanıcının
+              ilk tıklamasında tekrar dene.
+            */
+            retryAudioPlayback =
+              () => {
+                void audioElement
+                  .play()
+                  .catch(
+                    (retryError) => {
+                      console.error(
+                        "Uzak ses tekrar oynatılamadı:",
+                        retryError
+                      );
+                    }
+                  );
 
-    console.error(
-      "Uzak video oynatılamadı:",
-      error
-    );
-  });
+                removeAudioRetryListeners();
+              };
+
+            window.addEventListener(
+              "pointerdown",
+              retryAudioPlayback
+            );
+
+            window.addEventListener(
+              "keydown",
+              retryAudioPlayback
+            );
+
+            return;
+          }
+
+          if (
+            error instanceof
+              DOMException &&
+            error.name ===
+              "AbortError"
+          ) {
+            return;
+          }
+
+          console.error(
+            "Uzak ses oynatılamadı:",
+            error
+          );
+        });
+    } else {
+      audioElement.pause();
     }
-  }, [
-    stream,
-    state.camera,
-    state.screenSharing,
-  ]);
+  }
+
+  return () => {
+    removeAudioRetryListeners();
+  };
+}, [
+  stream,
+  state.camera,
+  state.microphone,
+  state.screenSharing,
+]);
 
   const shouldShowVideo =
     state.connected &&
@@ -132,12 +243,19 @@ function RemoteUserCard({
           ref={videoRef}
           autoPlay
           playsInline
+          muted
           className={`h-full w-full object-cover ${
             shouldShowVideo
               ? "block"
               : "hidden"
           }`}
         />
+
+        <audio
+  ref={audioRef}
+  autoPlay
+  className="hidden"
+/>
 
         {!state.connected && (
           <span className="text-zinc-400">
@@ -874,55 +992,7 @@ peerConnection.ontrack = (
     ------------------------------------------------
   */
 
-  const createAndSendOffer = async (
-    remoteSocketId: string
-  ) => {
-    try {
-      const peerConnection =
-        createPeerConnection(
-          remoteSocketId
-        );
-
-      if (
-        peerConnection.signalingState !==
-        "stable"
-      ) {
-        return;
-      }
-
-      const offer =
-        await peerConnection.createOffer();
-
-      await peerConnection.setLocalDescription(
-        offer
-      );
-
-      socket.emit(
-        "webrtc-offer",
-        {
-          target:
-            remoteSocketId,
-
-          offer,
-        }
-      );
-
-      sendCurrentMediaState(
-        remoteSocketId
-      );
-
-      console.log(
-        "WebRTC offer gönderildi:",
-        remoteSocketId
-      );
-    } catch (error) {
-      console.error(
-        "WebRTC offer oluşturulamadı:",
-        error
-      );
-    }
-  };
-
+  
   /*
     ------------------------------------------------
     TEK PEER İÇİN YENİDEN GÖRÜŞME
@@ -1218,17 +1288,87 @@ sendCurrentMediaStateToAll();
 return;
       }
 
-      audioTrack.enabled =
-        !audioTrack.enabled;
+      /*
+  Mikrofon zaten açıksa artık sadece
+  enabled=false yapmıyoruz.
 
-      isMicOpenRef.current =
-        audioTrack.enabled;
+  Cloudflare yayınını gerçekten
+  kapatıyoruz ki karşı taraf da
+  mikrofonun kapandığını bilsin.
+*/
+if (
+  cloudflareConnectionRef.current &&
+  cloudflareMicTrackRef.current
+) {
+  /*
+    Kamera veya ekran yayını hâlâ
+    açıksa aynı Cloudflare session'ı
+    kullanmaya devam edeceğiz.
 
-      setIsMicOpen(
-        audioTrack.enabled
+    Mikrofon son aktif yayınsa ise
+    bütün publish bağlantısını kapatıp
+    sonraki açılışta yeni session
+    oluşturacağız.
+  */
+  const hasOtherCloudflareTracks =
+    Boolean(
+      cloudflareCameraTrackRef.current ||
+      cloudflareScreenTrackRef.current
+    );
+
+  try {
+    if (hasOtherCloudflareTracks) {
+      await closeCloudflareTracks(
+        cloudflareConnectionRef.current,
+        [
+          cloudflareMicTrackRef.current,
+        ]
+      );
+    } else {
+      closeCloudflareMediaConnection(
+        cloudflareConnectionRef.current
       );
 
-      sendCurrentMediaStateToAll();
+      cloudflareConnectionRef.current =
+        null;
+    }
+  } catch (cloudflareError) {
+    console.error(
+      "Cloudflare mikrofon yayını kapatılamadı:",
+      cloudflareError
+    );
+  }
+
+  socket.emit(
+    "cloudflare-publication-removed",
+    {
+      kind: "microphone",
+    }
+  );
+
+  cloudflareMicTrackRef.current =
+    null;
+}
+
+/*
+  Local mikrofon track'ini de durdur.
+  Bir sonraki Mikrofon Aç tıklamasında
+  yeni track oluşturulacak.
+*/
+audioTrack.stop();
+
+stream.removeTrack(
+  audioTrack
+);
+
+isMicOpenRef.current =
+  false;
+
+setIsMicOpen(false);
+
+console.log(
+  "Cloudflare mikrofon yayını kapatıldı."
+);
     } catch (error) {
       console.error(
         "Mikrofon açılamadı:",
@@ -1867,28 +2007,21 @@ console.log(
       bağlantı kuracak.
     */
     const handleExistingUsers = (
-      existingUsers: string[]
-    ) => {
-      console.log(
-        "Kanaldaki mevcut kullanıcılar:",
-        existingUsers
-      );
+  existingUsers: string[]
+) => {
+  console.log(
+    "Kanaldaki mevcut kullanıcılar:",
+    existingUsers
+  );
 
-      existingUsers.forEach(
-        (remoteSocketId) => {
-          if (
-            remoteSocketId ===
-            socket.id
-          ) {
-            return;
-          }
+  /*
+    Eski P2P offer artık oluşturulmuyor.
 
-          void createAndSendOffer(
-            remoteSocketId
-          );
-        }
-      );
-    };
+    Remote mikrofon, kamera ve ekran
+    Cloudflare SFU yayın bilgileri
+    üzerinden alınacak.
+  */
+};
 
     /*
       Yeni kullanıcı geldiğinde mevcut
@@ -2219,13 +2352,55 @@ cloudflareRemoteTracksRef.current.set(
 );
 
               console.log(
-                "Cloudflare remote track geldi:",
-                {
-                  remotePublisherSocketId,
-                  remoteKind,
-                  remoteTrack,
-                }
-              );
+  "Cloudflare remote track geldi:",
+  {
+    remotePublisherSocketId,
+    remoteKind,
+
+    trackKind:
+      remoteTrack.track.kind,
+
+    trackId:
+      remoteTrack.track.id,
+
+    enabled:
+      remoteTrack.track.enabled,
+
+    muted:
+      remoteTrack.track.muted,
+
+    readyState:
+      remoteTrack.track.readyState,
+
+    receiveConnectionState:
+      cloudflareReceiveConnectionRef.current
+        ?.peerConnection.connectionState,
+
+    receiveIceState:
+      cloudflareReceiveConnectionRef.current
+        ?.peerConnection.iceConnectionState,
+  }
+);
+
+remoteTrack.track.onmute = () => {
+  console.log(
+    "Cloudflare remote track MUTED:",
+    {
+      remotePublisherSocketId,
+      remoteKind,
+    }
+  );
+};
+
+remoteTrack.track.onunmute = () => {
+  console.log(
+    "Cloudflare remote track UNMUTED:",
+    {
+      remotePublisherSocketId,
+      remoteKind,
+    }
+  );
+};
 
               rebuildCloudflareRemoteStream(
   remotePublisherSocketId

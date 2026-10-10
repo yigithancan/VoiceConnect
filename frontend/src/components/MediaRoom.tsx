@@ -1939,9 +1939,29 @@ console.log(
     ------------------------------------------------
   */
 
-  const startScreenShare =
+    const startScreenShare =
     async () => {
       try {
+        /*
+          Mobil tarayıcıların büyük
+          kısmında ekran paylaşımı
+          desteklenmiyor.
+
+          API yoksa kullanıcıya açık
+          bir mesaj gösteriyoruz.
+        */
+        if (
+          !navigator.mediaDevices ||
+          typeof navigator.mediaDevices
+            .getDisplayMedia !== "function"
+        ) {
+          alert(
+            "Mobil tarayıcılarda ekran paylaşımı desteklenmiyor. Ekran paylaşımı için bilgisayardan giriş yap."
+          );
+
+          return;
+        }
+
         const stream =
           await navigator.mediaDevices.getDisplayMedia(
             {

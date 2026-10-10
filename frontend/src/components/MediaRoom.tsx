@@ -330,6 +330,21 @@ function MediaRoom({
     null
   );
 
+  const cloudflareMicConnectionRef =
+  useRef<CloudflareMediaConnection | null>(
+    null
+  );
+
+const cloudflareCameraConnectionRef =
+  useRef<CloudflareMediaConnection | null>(
+    null
+  );
+
+const cloudflareScreenConnectionRef =
+  useRef<CloudflareMediaConnection | null>(
+    null
+  );
+
   const cloudflareMicTrackRef =
   useRef<PublishedCloudflareTrack | null>(
     null
@@ -1223,26 +1238,26 @@ peerConnection.ontrack = (
   Cloudflare Realtime SFU'ya yayınlıyoruz.
 */
 try {
-  if (!cloudflareConnectionRef.current) {
-    cloudflareConnectionRef.current =
+  if (!cloudflareMicConnectionRef.current) {
+    cloudflareMicConnectionRef.current =
       await createCloudflareMediaConnection();
   }
 
   const publishedTracks =
-  await publishCloudflareTracks(
-    cloudflareConnectionRef.current,
-    [audioTrack]
-  );
+    await publishCloudflareTracks(
+      cloudflareMicConnectionRef.current,
+      [audioTrack]
+    );
 
-const publishedTrack =
-  publishedTracks[0] ?? null;
+  const publishedTrack =
+    publishedTracks[0] ?? null;
 
-cloudflareMicTrackRef.current =
-  publishedTrack;
+  cloudflareMicTrackRef.current =
+    publishedTrack;
 
-const publisherSessionId =
-  cloudflareConnectionRef.current
-    .sessionId;
+  const publisherSessionId =
+    cloudflareMicConnectionRef.current
+      .sessionId;
 
 if (
   publishedTrack &&
@@ -1297,48 +1312,19 @@ return;
   mikrofonun kapandığını bilsin.
 */
 if (
-  cloudflareConnectionRef.current &&
+  cloudflareMicConnectionRef.current
+) {
+  closeCloudflareMediaConnection(
+    cloudflareMicConnectionRef.current
+  );
+
+  cloudflareMicConnectionRef.current =
+    null;
+}
+
+if (
   cloudflareMicTrackRef.current
 ) {
-  /*
-    Kamera veya ekran yayını hâlâ
-    açıksa aynı Cloudflare session'ı
-    kullanmaya devam edeceğiz.
-
-    Mikrofon son aktif yayınsa ise
-    bütün publish bağlantısını kapatıp
-    sonraki açılışta yeni session
-    oluşturacağız.
-  */
-  const hasOtherCloudflareTracks =
-    Boolean(
-      cloudflareCameraTrackRef.current ||
-      cloudflareScreenTrackRef.current
-    );
-
-  try {
-    if (hasOtherCloudflareTracks) {
-      await closeCloudflareTracks(
-        cloudflareConnectionRef.current,
-        [
-          cloudflareMicTrackRef.current,
-        ]
-      );
-    } else {
-      closeCloudflareMediaConnection(
-        cloudflareConnectionRef.current
-      );
-
-      cloudflareConnectionRef.current =
-        null;
-    }
-  } catch (cloudflareError) {
-    console.error(
-      "Cloudflare mikrofon yayını kapatılamadı:",
-      cloudflareError
-    );
-  }
-
   socket.emit(
     "cloudflare-publication-removed",
     {
@@ -1448,26 +1434,26 @@ console.log(
   Cloudflare Realtime SFU'ya yayınlıyoruz.
 */
 try {
-  if (!cloudflareConnectionRef.current) {
-    cloudflareConnectionRef.current =
+  if (!cloudflareCameraConnectionRef.current) {
+    cloudflareCameraConnectionRef.current =
       await createCloudflareMediaConnection();
   }
 
   const publishedTracks =
-  await publishCloudflareTracks(
-    cloudflareConnectionRef.current,
-    [videoTrack]
-  );
+    await publishCloudflareTracks(
+      cloudflareCameraConnectionRef.current,
+      [videoTrack]
+    );
 
-const publishedTrack =
-  publishedTracks[0] ?? null;
+  const publishedTrack =
+    publishedTracks[0] ?? null;
 
-cloudflareCameraTrackRef.current =
-  publishedTrack;
+  cloudflareCameraTrackRef.current =
+    publishedTrack;
 
-const publisherSessionId =
-  cloudflareConnectionRef.current
-    .sessionId;
+  const publisherSessionId =
+    cloudflareCameraConnectionRef.current
+      .sessionId;
 
 if (
   publishedTrack &&
@@ -1513,25 +1499,65 @@ sendCurrentMediaStateToAll();
 return;
       }
 
-      videoTrack.enabled =
-        !videoTrack.enabled;
+            /*
+        Kamera açıksa artık sadece
+        enabled=false yapmıyoruz.
 
-      isCameraOpenRef.current =
-        videoTrack.enabled;
+        Cloudflare kamera yayınını
+        gerçekten kapatıyoruz.
+      */
+      if (
+  cloudflareCameraConnectionRef.current
+) {
+  closeCloudflareMediaConnection(
+    cloudflareCameraConnectionRef.current
+  );
 
-      setIsCameraOpen(
-        videoTrack.enabled
+  cloudflareCameraConnectionRef.current =
+    null;
+}
+
+if (
+  cloudflareCameraTrackRef.current
+) {
+  socket.emit(
+    "cloudflare-publication-removed",
+    {
+      kind: "camera",
+    }
+  );
+
+  cloudflareCameraTrackRef.current =
+    null;
+}
+
+      /*
+        Yerel kamera track'ini de
+        tamamen durduruyoruz.
+      */
+      videoTrack.stop();
+
+      stream.removeTrack(
+        videoTrack
       );
 
-      if (
-        videoTrack.enabled
-      ) {
-        await showCameraStream(
-          stream
-        );
+      isCameraOpenRef.current =
+        false;
+
+      setIsCameraOpen(false);
+
+      /*
+        Kendi kamera önizlemesini de
+        temizle.
+      */
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject =
+          null;
       }
 
-      sendCurrentMediaStateToAll();
+      console.log(
+        "Cloudflare kamera yayını kapatıldı."
+      );
     } catch (error) {
       console.error(
         "Kamera açılamadı:",
@@ -1661,20 +1687,68 @@ return;
     }
 
     /*
-      Cloudflare bağlantısının tamamını
-      kapat ve eski track MID bilgilerini
-      temizle.
-    */
-    if (cloudflareConnectionRef.current) {
-      closeCloudflareMediaConnection(
-        cloudflareConnectionRef.current
-      );
+  Mikrofon, kamera ve ekran artık
+  birbirinden bağımsız Cloudflare
+  bağlantıları kullanıyor.
 
-      cloudflareConnectionRef.current =
-        null;
-    }
+  Medyayı Kapat butonunda üçünü de
+  ayrı ayrı tamamen kapatıyoruz.
+*/
+if (
+  cloudflareMicConnectionRef.current
+) {
+  closeCloudflareMediaConnection(
+    cloudflareMicConnectionRef.current
+  );
 
-    if (cloudflareMicTrackRef.current) {
+  cloudflareMicConnectionRef.current =
+    null;
+}
+
+if (
+  cloudflareCameraConnectionRef.current
+) {
+  closeCloudflareMediaConnection(
+    cloudflareCameraConnectionRef.current
+  );
+
+  cloudflareCameraConnectionRef.current =
+    null;
+}
+
+if (
+  cloudflareScreenConnectionRef.current
+) {
+  closeCloudflareMediaConnection(
+    cloudflareScreenConnectionRef.current
+  );
+
+  cloudflareScreenConnectionRef.current =
+    null;
+}
+
+/*
+  Eski bağlantı ref'i hâlâ doluysa
+  onu da güvenli şekilde kapat.
+*/
+if (
+  cloudflareConnectionRef.current
+) {
+  closeCloudflareMediaConnection(
+    cloudflareConnectionRef.current
+  );
+
+  cloudflareConnectionRef.current =
+    null;
+}
+
+/*
+  Karşı tarafa hangi yayınların
+  kaldırıldığını bildir.
+*/
+if (
+  cloudflareMicTrackRef.current
+) {
   socket.emit(
     "cloudflare-publication-removed",
     {
@@ -1683,7 +1757,9 @@ return;
   );
 }
 
-if (cloudflareCameraTrackRef.current) {
+if (
+  cloudflareCameraTrackRef.current
+) {
   socket.emit(
     "cloudflare-publication-removed",
     {
@@ -1692,7 +1768,9 @@ if (cloudflareCameraTrackRef.current) {
   );
 }
 
-if (cloudflareScreenTrackRef.current) {
+if (
+  cloudflareScreenTrackRef.current
+) {
   socket.emit(
     "cloudflare-publication-removed",
     {
@@ -1711,7 +1789,7 @@ cloudflareScreenTrackRef.current =
   null;
 
 console.log(
-  "Cloudflare medya bağlantısı kapatıldı."
+  "Cloudflare medya bağlantıları kapatıldı."
 );
 
     sendCurrentMediaStateToAll();
@@ -1736,41 +1814,49 @@ console.log(
       paylaşımı track'ini kapat.
     */
     if (
-      cloudflareConnectionRef.current &&
-      cloudflareScreenTrackRef.current
-    ) {
-      try {
-        await closeCloudflareTracks(
-          cloudflareConnectionRef.current,
-          [
-            cloudflareScreenTrackRef.current,
-          ]
-        );
-
-        console.log(
-  "Cloudflare ekran paylaşımı kapatıldı."
-);
-
-cloudflareScreenTrackRef.current =
-  null;
-
-socket.emit(
-  "cloudflare-publication-removed",
-  {
-    kind: "screen",
+  cloudflareScreenConnectionRef.current &&
+  cloudflareScreenTrackRef.current
+) {
+  try {
+    await closeCloudflareTracks(
+      cloudflareScreenConnectionRef.current,
+      [
+        cloudflareScreenTrackRef.current,
+      ]
+    );
+  } catch (cloudflareError) {
+    console.error(
+      "Cloudflare ekran paylaşımı kapatılamadı:",
+      cloudflareError
+    );
   }
-);
 
-console.log(
-  "Cloudflare ekran paylaşımı yayın bilgisi kaldırıldı."
-);
-      } catch (cloudflareError) {
-        console.error(
-          "Cloudflare ekran paylaşımı kapatılamadı:",
-          cloudflareError
-        );
-      }
+  /*
+    Ekran paylaşımı artık kendine ait
+    bir Cloudflare session kullandığı için
+    kapatınca bağlantıyı da tamamen kapat.
+  */
+  closeCloudflareMediaConnection(
+    cloudflareScreenConnectionRef.current
+  );
+
+  cloudflareScreenConnectionRef.current =
+    null;
+
+  socket.emit(
+    "cloudflare-publication-removed",
+    {
+      kind: "screen",
     }
+  );
+
+  cloudflareScreenTrackRef.current =
+    null;
+
+  console.log(
+    "Cloudflare ekran paylaşımı kapatıldı."
+  );
+}
 
     /*
       Eski P2P peer'lerde ekran yerine
@@ -1924,25 +2010,26 @@ console.log(
   Cloudflare Realtime SFU'ya yayınlıyoruz.
 */
 try {
-  if (!cloudflareConnectionRef.current) {
-    cloudflareConnectionRef.current =
+  if (!cloudflareScreenConnectionRef.current) {
+    cloudflareScreenConnectionRef.current =
       await createCloudflareMediaConnection();
   }
 
   const publishedTracks =
-  await publishCloudflareTracks(
-    cloudflareConnectionRef.current,
-    [screenTrack]
-  );
-const publishedTrack =
-  publishedTracks[0] ?? null;
+    await publishCloudflareTracks(
+      cloudflareScreenConnectionRef.current,
+      [screenTrack]
+    );
 
-cloudflareScreenTrackRef.current =
-  publishedTrack;
+  const publishedTrack =
+    publishedTracks[0] ?? null;
 
-const publisherSessionId =
-  cloudflareConnectionRef.current
-    .sessionId;
+  cloudflareScreenTrackRef.current =
+    publishedTrack;
+
+  const publisherSessionId =
+    cloudflareScreenConnectionRef.current
+      .sessionId;
 
 if (
   publishedTrack &&

@@ -344,12 +344,24 @@ io.on("connection", (socket) => {
           );
 
         socket.leave(
-          currentRoom
-        );
+  currentRoom
+);
 
-        sendChannelUsers(
-          currentRoom
-        );
+/*
+  Kullanıcı başka bir odaya geçerken
+  önceki odadaki Cloudflare yayın
+  bilgilerini temizle.
+
+  Böylece yeni odadaki kullanıcılar
+  eski sessionId / trackName
+  bilgilerini almaz.
+*/
+socket.data.cloudflarePublications =
+  {};
+
+sendChannelUsers(
+  currentRoom
+);
 
         console.log(
           `Socket ${socket.id}, ${currentRoom} kanalından ayrıldı.`
@@ -574,15 +586,27 @@ existingUsers.forEach(
         );
 
       socket.leave(
-        currentRoom
-      );
+  currentRoom
+);
 
-      socket.data.currentRoom =
-        undefined;
+socket.data.currentRoom =
+  undefined;
 
-      sendChannelUsers(
-        currentRoom
-      );
+/*
+  Kullanıcı odadan ayrıldıktan sonra
+  eski Cloudflare session + track
+  bilgileri yeni bir odaya taşınmamalı.
+
+  Aksi halde başka kullanıcılar artık
+  var olmayan track'lere abone olmaya
+  çalışabilir.
+*/
+socket.data.cloudflarePublications =
+  {};
+
+sendChannelUsers(
+  currentRoom
+);
 
       /*
         Dashboard'a:

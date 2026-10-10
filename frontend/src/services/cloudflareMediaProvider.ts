@@ -552,23 +552,78 @@ export const publishCloudflareTracks =
     PublishedCloudflareTrack[]
   > => {
     /*
-     * Mikrofon, kamera ve ekran paylaşımı
-     * hızlı açılırsa SDP işlemleri
-     * birbirine girmesin.
-     */
+      Aynı Cloudflare session üzerinde
+      işlemleri sıraya koyuyoruz.
+    */
     const publishTask =
       connection.negotiationQueue.then(
-        () =>
-          publishCloudflareTracksNow(
-            connection,
-            tracks
-          )
+        async () => {
+          try {
+            /*
+              Önce mevcut bağlantıyla
+              normal şekilde yayınlamayı dene.
+            */
+            return await publishCloudflareTracksNow(
+              connection,
+              tracks
+            );
+          } catch (firstError) {
+            console.warn(
+              "İlk Cloudflare yayın denemesi başarısız. Yeni session ile tekrar deneniyor:",
+              firstError
+            );
+
+            /*
+              Başarısız veya yarım kalmış
+              PeerConnection/session tekrar
+              kullanılmamalı.
+
+              Local MediaStreamTrack'leri
+              durdurmuyoruz; sadece bozuk
+              PeerConnection'ı kapatıyoruz.
+            */
+            try {
+              connection.peerConnection.close();
+            } catch (closeError) {
+              console.warn(
+                "Eski Cloudflare PeerConnection kapatılamadı:",
+                closeError
+              );
+            }
+
+            /*
+              Aynı connection nesnesini
+              yepyeni transport + session
+              ile sıfırla.
+            */
+            connection.peerConnection =
+              new RTCPeerConnection(
+                RTC_CONFIGURATION
+              );
+
+            connection.sessionId =
+              null;
+
+            /*
+              Aynı mikrofon/kamera/ekran
+              track'iyle sadece bir kez
+              daha dene.
+
+              İkinci deneme de başarısızsa
+              hata yukarı taşınacak.
+            */
+            return await publishCloudflareTracksNow(
+              connection,
+              tracks
+            );
+          }
+        }
       );
 
     /*
-     * Publish hata verse bile
-     * queue kilitlenmemeli.
-     */
+      İlk veya ikinci deneme hata verse
+      bile queue kilitlenmesin.
+    */
     connection.negotiationQueue =
       publishTask.then(
         () => undefined,

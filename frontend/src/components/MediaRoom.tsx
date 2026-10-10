@@ -1238,14 +1238,25 @@ peerConnection.ontrack = (
   Cloudflare Realtime SFU'ya yayınlıyoruz.
 */
 try {
-  if (!cloudflareMicConnectionRef.current) {
-    cloudflareMicConnectionRef.current =
+  /*
+    Async publish sırasında ref'in
+    değişmesi ihtimaline karşı bağlantıyı
+    local değişkende sabit tutuyoruz.
+  */
+  let micConnection =
+    cloudflareMicConnectionRef.current;
+
+  if (!micConnection) {
+    micConnection =
       await createCloudflareMediaConnection();
+
+    cloudflareMicConnectionRef.current =
+      micConnection;
   }
 
   const publishedTracks =
     await publishCloudflareTracks(
-      cloudflareMicConnectionRef.current,
+      micConnection,
       [audioTrack]
     );
 
@@ -1256,9 +1267,7 @@ try {
     publishedTrack;
 
   const publisherSessionId =
-    cloudflareMicConnectionRef.current
-      .sessionId;
-
+    micConnection.sessionId;
 if (
   publishedTrack &&
   publisherSessionId
@@ -1434,14 +1443,25 @@ console.log(
   Cloudflare Realtime SFU'ya yayınlıyoruz.
 */
 try {
-  if (!cloudflareCameraConnectionRef.current) {
-    cloudflareCameraConnectionRef.current =
+  /*
+    Async publish sırasında ref'in
+    değişmesi ihtimaline karşı kamera
+    bağlantısını local değişkende tut.
+  */
+  let cameraConnection =
+    cloudflareCameraConnectionRef.current;
+
+  if (!cameraConnection) {
+    cameraConnection =
       await createCloudflareMediaConnection();
+
+    cloudflareCameraConnectionRef.current =
+      cameraConnection;
   }
 
   const publishedTracks =
     await publishCloudflareTracks(
-      cloudflareCameraConnectionRef.current,
+      cameraConnection,
       [videoTrack]
     );
 
@@ -1452,8 +1472,7 @@ try {
     publishedTrack;
 
   const publisherSessionId =
-    cloudflareCameraConnectionRef.current
-      .sessionId;
+    cameraConnection.sessionId;
 
 if (
   publishedTrack &&
@@ -2010,14 +2029,26 @@ console.log(
   Cloudflare Realtime SFU'ya yayınlıyoruz.
 */
 try {
-  if (!cloudflareScreenConnectionRef.current) {
-    cloudflareScreenConnectionRef.current =
+  /*
+    Async publish sırasında ref'in
+    değişmesi ihtimaline karşı ekran
+    paylaşımı bağlantısını local
+    değişkende tut.
+  */
+  let screenConnection =
+    cloudflareScreenConnectionRef.current;
+
+  if (!screenConnection) {
+    screenConnection =
       await createCloudflareMediaConnection();
+
+    cloudflareScreenConnectionRef.current =
+      screenConnection;
   }
 
   const publishedTracks =
     await publishCloudflareTracks(
-      cloudflareScreenConnectionRef.current,
+      screenConnection,
       [screenTrack]
     );
 
@@ -2028,8 +2059,7 @@ try {
     publishedTrack;
 
   const publisherSessionId =
-    cloudflareScreenConnectionRef.current
-      .sessionId;
+    screenConnection.sessionId;
 
 if (
   publishedTrack &&
@@ -2793,12 +2823,52 @@ socket.off(
         track.stop();
       });
 
-    if (cloudflareConnectionRef.current) {
+        if (
+      cloudflareMicConnectionRef.current
+    ) {
+      closeCloudflareMediaConnection(
+        cloudflareMicConnectionRef.current
+      );
+
+      cloudflareMicConnectionRef.current =
+        null;
+    }
+
+    if (
+      cloudflareCameraConnectionRef.current
+    ) {
+      closeCloudflareMediaConnection(
+        cloudflareCameraConnectionRef.current
+      );
+
+      cloudflareCameraConnectionRef.current =
+        null;
+    }
+
+    if (
+      cloudflareScreenConnectionRef.current
+    ) {
+      closeCloudflareMediaConnection(
+        cloudflareScreenConnectionRef.current
+      );
+
+      cloudflareScreenConnectionRef.current =
+        null;
+    }
+
+    /*
+      Eski bağlantı ref'i herhangi bir
+      sebeple hâlâ doluysa onu da temizle.
+    */
+    if (
+      cloudflareConnectionRef.current
+    ) {
       closeCloudflareMediaConnection(
         cloudflareConnectionRef.current
       );
 
-      cloudflareConnectionRef.current = null;
+      cloudflareConnectionRef.current =
+        null;
     }
     if (
   cloudflareReceiveConnectionRef.current
